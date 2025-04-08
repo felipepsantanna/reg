@@ -5,6 +5,7 @@ import { AiOutlineInfoCircle, AiOutlineSmile, AiOutlineLoading3Quarters, AiOutli
 import EmojiPicker from 'emoji-picker-react';
 import imageCompression from 'browser-image-compression';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { StrictModeDroppable } from './StrictModeDroppable';
 
 interface FormData {
     nome: string;
@@ -69,7 +70,6 @@ export default function DashboardPage() {
 
     const processImage = async (file: File): Promise<File> => {
         const fileId = Math.random().toString(36).substring(7);
-        setProcessingFiles(prev => [...prev, { id: fileId, name: file.name, progress: 0, type: 'image' }]);
 
         try {
             // Opções de compressão
@@ -141,81 +141,155 @@ export default function DashboardPage() {
 
     const processVideo = async (file: File): Promise<File> => {
         const fileId = Math.random().toString(36).substring(7);
-        setProcessingFiles(prev => [...prev, { id: fileId, name: file.name, progress: 0, type: 'video' }]);
 
         try {
-            const videoUrl = URL.createObjectURL(file);
+            // Criar um elemento de vídeo
             const video = document.createElement('video');
+            const videoUrl = URL.createObjectURL(file);
             video.src = videoUrl;
 
             return new Promise((resolve) => {
+                let isProcessing = true;
+                let processingTimeout: NodeJS.Timeout;
+
+                const cleanup = () => {
+                    if (processingTimeout) clearTimeout(processingTimeout);
+                    URL.revokeObjectURL(videoUrl);
+                    setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
+                };
+
+                // Quando o vídeo estiver pronto
                 video.onloadedmetadata = () => {
+                    // Criar um canvas para processar os frames
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
 
-                    // Configurar tamanho do canvas para o vídeo
+                    if (!ctx) {
+                        console.error('Não foi possível obter o contexto do canvas');
+                        cleanup();
+                        resolve(file);
+                        return;
+                    }
+
+                    // Configurar tamanho do canvas
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
 
                     // Criar um MediaRecorder para gravar o vídeo processado
                     const stream = canvas.captureStream();
                     const mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'video/webm'
+                        mimeType: 'video/webm;codecs=vp9'
                     });
 
                     const chunks: Blob[] = [];
                     mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        const blob = new Blob(chunks, { type: 'video/webm' });
-                        const processedFile = new File([blob], file.name, {
-                            type: 'video/webm',
-                            lastModified: Date.now()
-                        });
-                        // Limpar recursos
-                        URL.revokeObjectURL(videoUrl);
-                        setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
-                        resolve(processedFile);
-                    };
 
-                    // Processar o vídeo frame por frame
-                    video.requestVideoFrameCallback(function callback(now, metadata) {
-                        if (ctx) {
-                            // Limpar o canvas
-                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    // Função para processar um frame
+                    const processFrame = () => {
+                        if (!isProcessing) return;
 
-                            // Desenhar o frame atual
-                            ctx.drawImage(video, 0, 0);
+                        // Desenhar o frame atual no canvas
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                            // Adicionar watermark no centro
-                            const watermark = 'watermark';
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                            ctx.font = '20px Arial';
+                        // Adicionar watermark
+                        const watermark = 'watermark';
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                        ctx.font = 'bold 24px Arial';
 
-                            const metrics = ctx.measureText(watermark);
-                            const x = (canvas.width - metrics.width) / 2;
-                            const y = canvas.height / 2;
+                        // Calcular posição central
+                        const metrics = ctx.measureText(watermark);
+                        const x = (canvas.width - metrics.width) / 2;
+                        const y = canvas.height / 2;
 
-                            ctx.fillText(watermark, x, y);
-                        }
+                        // Adicionar sombra para melhor visibilidade
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowOffsetX = 2;
+                        ctx.shadowOffsetY = 2;
+
+                        // Desenhar o texto
+                        ctx.fillText(watermark, x, y);
+
+                        // Resetar sombra
+                        ctx.shadowColor = 'transparent';
+                        ctx.shadowBlur = 0;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 0;
 
                         // Atualizar progresso
-                        const progress = (video.currentTime / video.duration) * 100;
+                        const progress = Math.min((video.currentTime / video.duration) * 100, 99);
                         setProcessingFiles(prev =>
                             prev.map(f => f.id === fileId ? { ...f, progress } : f)
                         );
 
                         // Continuar processando se o vídeo não terminou
                         if (!video.ended) {
-                            video.requestVideoFrameCallback(callback);
+                            requestAnimationFrame(processFrame);
                         } else {
+                            isProcessing = false;
                             mediaRecorder.stop();
                         }
-                    });
+                    };
 
-                    // Iniciar a gravação e reprodução
-                    mediaRecorder.start();
-                    video.play();
+                    // Quando o MediaRecorder parar
+                    mediaRecorder.onstop = () => {
+                        if (chunks.length > 0) {
+                            const blob = new Blob(chunks, { type: 'video/webm' });
+                            const processedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webm'), {
+                                type: 'video/webm',
+                                lastModified: Date.now()
+                            });
+
+                            // Atualizar progresso para 100%
+                            setProcessingFiles(prev =>
+                                prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
+                            );
+
+                            // Pequeno delay para mostrar 100% antes de limpar
+                            setTimeout(() => {
+                                cleanup();
+                                resolve(processedFile);
+                            }, 1000);
+                        } else {
+                            console.warn('Falha ao processar vídeo, retornando arquivo original');
+                            cleanup();
+                            resolve(file);
+                        }
+                    };
+
+                    // Iniciar processamento
+                    try {
+                        mediaRecorder.start(1000); // Capturar frames a cada 1 segundo
+                        video.play().catch(e => {
+                            console.error('Erro ao reproduzir vídeo:', e);
+                            cleanup();
+                            resolve(file);
+                        });
+                        processFrame();
+                    } catch (e) {
+                        console.error('Erro ao iniciar processamento:', e);
+                        cleanup();
+                        resolve(file);
+                    }
                 };
+
+                // Tratamento de erros
+                video.onerror = (error) => {
+                    console.error('Erro ao carregar vídeo:', error);
+                    isProcessing = false;
+                    cleanup();
+                    resolve(file);
+                };
+
+                // Timeout para evitar travamentos
+                processingTimeout = setTimeout(() => {
+                    if (isProcessing) {
+                        console.error('Timeout ao processar vídeo');
+                        isProcessing = false;
+                        cleanup();
+                        resolve(file);
+                    }
+                }, 60000); // 60 segundos de timeout
             });
         } catch (error) {
             console.error('Erro ao processar vídeo:', error);
@@ -254,9 +328,45 @@ export default function DashboardPage() {
         }
 
         try {
-            // Processar arquivos
-            const processedImagens = await Promise.all(validImagens.map(processImage));
-            const processedVideos = await Promise.all(validVideos.map(processVideo));
+            // Criar IDs únicos para cada arquivo
+            const imageIds = validImagens.map(() => Math.random().toString(36).substring(7));
+            const videoIds = validVideos.map(() => Math.random().toString(36).substring(7));
+
+            // Criar lista inicial de processamento
+            const initialProcessingFiles = [
+                ...validImagens.map((file, index) => ({
+                    id: imageIds[index],
+                    name: file.name,
+                    progress: 0,
+                    type: 'image' as const
+                })),
+                ...validVideos.map((file, index) => ({
+                    id: videoIds[index],
+                    name: file.name,
+                    progress: 0,
+                    type: 'video' as const
+                }))
+            ];
+
+            // Atualizar estado de processamento
+            setProcessingFiles(initialProcessingFiles);
+
+            // Processar arquivos em paralelo
+            const processedImagens = await Promise.all(
+                validImagens.map((file, index) =>
+                    processImage(file).finally(() => {
+                        setProcessingFiles(prev => prev.filter(f => f.id !== imageIds[index]));
+                    })
+                )
+            );
+
+            const processedVideos = await Promise.all(
+                validVideos.map((file, index) =>
+                    processVideo(file).finally(() => {
+                        setProcessingFiles(prev => prev.filter(f => f.id !== videoIds[index]));
+                    })
+                )
+            );
 
             // Criar novos itens de mídia
             const newMediaItems: MediaItem[] = [
@@ -702,7 +812,7 @@ export default function DashboardPage() {
                     {(mediaItems.length > 0) && (
                         <div className="mt-4">
                             <DragDropContext onDragEnd={handleDragEnd}>
-                                <Droppable droppableId="media-grid" direction="horizontal">
+                                <StrictModeDroppable droppableId="media-grid" direction="horizontal">
                                     {(provided) => (
                                         <div
                                             {...provided.droppableProps}
@@ -719,20 +829,24 @@ export default function DashboardPage() {
                                                         <div
                                                             ref={provided.innerRef}
                                                             {...provided.draggableProps}
-                                                            className="relative group"
+                                                            className="relative group cursor-move"
                                                         >
                                                             <div
                                                                 {...provided.dragHandleProps}
-                                                                className="absolute top-2 left-2 z-10 bg-black/50 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                className="absolute inset-0 z-10 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
                                                             >
-                                                                <AiOutlineDrag className="text-white" />
+                                                                <div className="absolute top-2 left-2">
+                                                                    <AiOutlineDrag className="text-white" />
+                                                                </div>
+                                                                <div className="absolute top-2 right-2">
+                                                                    <button
+                                                                        onClick={() => removeMedia(item.id)}
+                                                                        className="text-white text-sm hover:text-red-500"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <button
-                                                                onClick={() => removeMedia(item.id)}
-                                                                className="absolute top-2 right-2 z-10 bg-black/50 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                <span className="text-white text-sm">×</span>
-                                                            </button>
                                                             {item.type === 'image' ? (
                                                                 <img
                                                                     src={item.url}
@@ -743,6 +857,8 @@ export default function DashboardPage() {
                                                                 <video
                                                                     src={item.url}
                                                                     className="w-full h-48 object-cover rounded-lg"
+                                                                    preload="metadata"
+                                                                    poster={item.url}
                                                                 />
                                                             )}
                                                         </div>
@@ -752,7 +868,7 @@ export default function DashboardPage() {
                                             {provided.placeholder}
                                         </div>
                                     )}
-                                </Droppable>
+                                </StrictModeDroppable>
                             </DragDropContext>
                         </div>
                     )}
