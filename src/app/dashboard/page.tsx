@@ -96,8 +96,8 @@ export default function DashboardPage() {
     const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const [processingList, setProcessingList] = useState<{ id: string; name: string; progress: number }[]>([]);
-    const [layoutType, setLayoutType] = useState<'grid' | 'masonry'>('grid');
     const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -426,116 +426,94 @@ export default function DashboardPage() {
         const files = Array.from(e.target.files || []);
         const maxFotos = Number(process.env.NEXT_PUBLIC_MAX_FOTOS) || 7;
         const maxVideos = Number(process.env.NEXT_PUBLIC_MAX_VIDEOS) || 3;
-        const maxFotoSize = 3 * 1024 * 1024; // 3MB
-        const maxVideoSize = 15 * 1024 * 1024; // 15MB
+        const maxFotoSize = Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) || 10485760; // 10MB
+        const maxVideoSize = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) || 52428800; // 50MB
 
         // Separar arquivos por tipo
-        const imagens = files.filter(file =>
-            file.type.startsWith('image/') &&
-            ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
-        );
-        const videos = files.filter(file =>
-            file.type.startsWith('video/') &&
-            ['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)
-        );
+        const imagens = files.filter(file => file.type.startsWith('image/'));
+        const videos = files.filter(file => file.type.startsWith('video/'));
 
-        // Validar e limitar imagens
-        const validImagens = imagens
-            .filter(file => file.size <= maxFotoSize)
-            .slice(0, maxFotos);
-
-        if (validImagens.length < imagens.length) {
-            alert(`Algumas imagens foram ignoradas por excederem o tamanho máximo de 3MB ou formato não suportado`);
+        // Validar limites de quantidade
+        if (imagens.length + mediaItems.filter(item => item.type === 'image').length > maxFotos) {
+            alert(`Limite de ${maxFotos} fotos atingido`);
+            return;
         }
 
-        // Validar e limitar vídeos
-        const validVideos = videos
-            .filter(file => file.size <= maxVideoSize)
-            .slice(0, maxVideos);
-
-        if (validVideos.length < videos.length) {
-            alert(`Alguns vídeos foram ignorados por excederem o tamanho máximo de 15MB ou formato não suportado`);
+        if (videos.length + mediaItems.filter(item => item.type === 'video').length > maxVideos) {
+            alert(`Limite de ${maxVideos} vídeos atingido`);
+            return;
         }
 
-        try {
-            // Criar IDs únicos para cada arquivo
-            const imageIds = validImagens.map(() => Math.random().toString(36).substring(7));
-            const videoIds = validVideos.map(() => Math.random().toString(36).substring(7));
+        // Validar tamanhos
+        const imagensValidas = imagens.filter(file => {
+            if (file.size > maxFotoSize) {
+                alert(`A imagem ${file.name} excede o limite de ${maxFotoSize / 1024 / 1024}MB`);
+                return false;
+            }
+            return true;
+        });
 
-            // Criar lista inicial de processamento
-            const initialProcessingFiles = [
-                ...validImagens.map((file, index) => ({
-                    id: imageIds[index],
-                    name: file.name,
-                    progress: 0,
-                    type: 'image' as const
-                })),
-                ...validVideos.map((file, index) => ({
-                    id: videoIds[index],
-                    name: file.name,
-                    progress: 0,
-                    type: 'video' as const
-                }))
-            ];
+        const videosValidos = videos.filter(file => {
+            if (file.size > maxVideoSize) {
+                alert(`O vídeo ${file.name} excede o limite de ${maxVideoSize / 1024 / 1024}MB`);
+                return false;
+            }
+            return true;
+        });
 
-            // Atualizar estado de processamento
-            setProcessingFiles(initialProcessingFiles);
+        // Adicionar arquivos à lista de processamento
+        const newProcessingFiles = [...imagensValidas, ...videosValidos].map(file => ({
+            id: Math.random().toString(36).substring(7),
+            name: file.name,
+            progress: 0
+        }));
 
-            // Processar e fazer upload dos arquivos em paralelo
-            const processedImagens = await Promise.all(
-                validImagens.map(async (file, index) => {
-                    // Processar imagem com marca d'água
-                    const processedFile = await processImage(file);
-                    // Upload para Cloudflare
-                    const cdnUrl = await uploadToCloudflare(file, 'image');
-                    return { file: file, cdnUrl };
-                })
-            );
+        setProcessingList(prev => [...prev, ...newProcessingFiles]);
 
-            const processedVideos = await Promise.all(
-                validVideos.map(async (file, index) => {
-                    // Processar vídeo com marca d'água
-                    const processedFile = await processVideo(file);
-                    // Upload para Bunny CDN
-                    const thumbnailUrl = await uploadToBunnyCDN(processedFile);
-                    console.log(thumbnailUrl);
-                    return { file: processedFile, cdnUrl: thumbnailUrl };
-                })
-            );
+        // Processar e fazer upload dos arquivos
+        for (const file of [...imagensValidas, ...videosValidos]) {
+            const fileId = newProcessingFiles.find(f => f.name === file.name)?.id;
+            if (!fileId) continue;
 
-            // Criar novos itens de mídia
-            const newMediaItems: MediaItem[] = [
-                ...processedImagens.map(({ file, cdnUrl }, index) => ({
-                    id: `img-${Date.now()}-${index}`,
-                    type: 'image' as const,
+            try {
+                setProcessingList(prev => prev.map(item =>
+                    item.id === fileId ? { ...item, progress: 20 } : item
+                ));
+
+                const processedFile = file.type.startsWith('image/')
+                    ? await processImage(file)
+                    : await processVideo(file);
+
+                setProcessingList(prev => prev.map(item =>
+                    item.id === fileId ? { ...item, progress: 60 } : item
+                ));
+
+                const cdnUrl = file.type.startsWith('image/')
+                    ? await uploadToCloudflare(processedFile, 'image')
+                    : await uploadToBunnyCDN(processedFile);
+
+                setProcessingList(prev => prev.map(item =>
+                    item.id === fileId ? { ...item, progress: 100 } : item
+                ));
+
+                setMediaItems(prev => [...prev, {
+                    id: fileId,
+                    type: file.type.startsWith('image/') ? 'image' : 'video',
                     url: cdnUrl,
-                    file
-                })),
-                ...processedVideos.map(({ file, cdnUrl }, index) => ({
-                    id: `video-${Date.now()}-${index}`,
-                    type: 'video' as const,
-                    url: '', // Deixe a URL do vídeo vazia por enquanto
-                    poster: cdnUrl, // Use a URL da thumbnail como poster
-                    file
-                }))
-            ];
+                    file: processedFile
+                }]);
 
-            // Atualizar estado
-            setMediaItems(prev => [...prev, ...newMediaItems]);
-            setFormData(prev => ({
-                ...prev,
-                imagens: [...prev.imagens, ...processedImagens.map(p => p.file)],
-                videos: [...prev.videos, ...processedVideos.map(p => p.file)],
-                imagensUrls: [...prev.imagensUrls, ...processedImagens.map(p => p.cdnUrl)],
-                videosUrls: [...prev.videosUrls, ...processedVideos.map(p => p.cdnUrl)]
-            }));
+                // Remover da lista de processamento após 1 segundo
+                setTimeout(() => {
+                    setProcessingList(prev => prev.filter(item => item.id !== fileId));
+                }, 1000);
 
-            // Limpar lista de processamento
-            setProcessingFiles([]);
-        } catch (error) {
-            console.error('Erro ao processar arquivos:', error);
-            alert('Ocorreu um erro ao processar os arquivos. Por favor, tente novamente.');
-            setProcessingFiles([]);
+            } catch (error) {
+                console.error('Erro ao processar arquivo:', error);
+                setProcessingList(prev => prev.map(item =>
+                    item.id === fileId ? { ...item, progress: -1 } : item
+                ));
+            }
         }
     };
 
@@ -631,21 +609,6 @@ export default function DashboardPage() {
         document.getElementById('file-upload')?.click();
     };
 
-    const handleLayoutChange = (type: 'grid' | 'masonry') => {
-        setLayoutType(type);
-
-        // Salvar preferência de layout
-        fetch('/api/user/layout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ layoutType: type }),
-        }).catch(error => {
-            console.error('Erro ao salvar layout:', error);
-        });
-    };
-
     const handleProfileSave = (profileData: UserProfileData) => {
         setUserProfile(profileData);
     };
@@ -706,85 +669,127 @@ export default function DashboardPage() {
                         </div>
                     )}
 
-                    {/* Controles de layout */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Layout
-                        </label>
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={() => handleLayoutChange('grid')}
-                                className={`px-4 py-2 rounded ${layoutType === 'grid'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700'
-                                    }`}
-                            >
-                                Grade
-                            </button>
-                            <button
-                                onClick={() => handleLayoutChange('masonry')}
-                                className={`px-4 py-2 rounded ${layoutType === 'masonry'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700'
-                                    }`}
-                            >
-                                Masonry
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Galeria de mídias */}
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                        <StrictModeDroppable droppableId="media-gallery">
-                            {(provided: any) => (
-                                <div
-                                    {...provided.droppableProps}
-                                    ref={provided.innerRef}
-                                    className={`grid gap-4 ${layoutType === 'grid'
-                                        ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                                        : 'columns-1 md:columns-2 lg:columns-3'
-                                        }`}
-                                >
-                                    {mediaItems.map((item, index) => (
-                                        <Draggable key={item.id} draggableId={item.id} index={index}>
-                                            {(provided: any) => (
-                                                <div
-                                                    ref={provided.innerRef}
-                                                    {...provided.draggableProps}
-                                                    {...provided.dragHandleProps}
-                                                    className={`bg-gray-100 rounded-lg overflow-hidden ${layoutType === 'masonry' ? 'break-inside-avoid mb-4' : ''}`}
-                                                >
-                                                    {item.type === 'image' ? (
-                                                        <img
-                                                            src={item.url}
-                                                            alt="Mídia"
-                                                            className="w-full h-auto object-cover"
-                                                            onError={(e) => {
-                                                                console.error('Erro ao carregar imagem:', e);
-                                                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar';
-                                                            }}
-                                                        />
+                    <div className="mb-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="text-sm text-gray-600">
+                                <p>Fotos: {mediaItems.filter(item => item.type === 'image').length}/{process.env.NEXT_PUBLIC_MAX_FOTOS}</p>
+                                <p>Vídeos: {mediaItems.filter(item => item.type === 'video').length}/{process.env.NEXT_PUBLIC_MAX_VIDEOS}</p>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                                <p>Limite de fotos: {Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) / 1024 / 1024}MB</p>
+                                <p>Limite de vídeos: {Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) / 1024 / 1024}MB</p>
+                            </div>
+                        </div>
+
+                        <DragDropContext onDragEnd={handleDragEnd}>
+                            <StrictModeDroppable droppableId="media-gallery">
+                                {(provided: any) => (
+                                    <div
+                                        {...provided.droppableProps}
+                                        ref={provided.innerRef}
+                                        className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2"
+                                    >
+                                        {mediaItems.map((item, index) => (
+                                            <Draggable key={item.id} draggableId={item.id} index={index}>
+                                                {(provided: any) => (
+                                                    <div
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        {...provided.dragHandleProps}
+                                                        className="relative bg-gray-100 rounded-lg overflow-hidden group"
+                                                    >
+                                                        <div className="aspect-square w-full">
+                                                            {item.type === 'image' ? (
+                                                                <img
+                                                                    src={item.url}
+                                                                    alt="Mídia"
+                                                                    className="w-full h-full object-cover"
+                                                                    onError={(e) => {
+                                                                        console.error('Erro ao carregar imagem:', e);
+                                                                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150x150?text=Erro+ao+carregar';
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <div className="relative w-full h-full">
+                                                                    <video
+                                                                        src={item.url}
+                                                                        poster={item.poster}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            console.error('Erro ao carregar vídeo:', e);
+                                                                            (e.target as HTMLVideoElement).poster = 'https://via.placeholder.com/150x150?text=Erro+ao+carregar';
+                                                                        }}
+                                                                    />
+                                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                            </svg>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute top-2 left-2 z-20 bg-black/70 text-white px-2 py-1 rounded text-sm">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
+                                                            <div className="bg-black/70 text-white px-2 py-1 rounded text-sm">
+                                                                {item.type === 'image' ? 'Imagem' : 'Vídeo'}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => removeMedia(item.id)}
+                                                                className="bg-red-500 text-white p-1 rounded hover:bg-red-600"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+
+                                        {/* Espaços reservados para arquivos em processamento */}
+                                        {processingList.map((item) => (
+                                            <div key={item.id} className="relative bg-gray-100 rounded-lg overflow-hidden">
+                                                <div className="aspect-square w-full flex items-center justify-center">
+                                                    {item.progress === -1 ? (
+                                                        <div className="text-center p-4">
+                                                            <p className="text-red-500 mb-2">Erro no processamento</p>
+                                                            <button
+                                                                onClick={() => setProcessingList(prev => prev.filter(i => i.id !== item.id))}
+                                                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                            >
+                                                                Remover
+                                                            </button>
+                                                        </div>
                                                     ) : (
-                                                        <video
-                                                            src={item.url}
-                                                            poster={item.poster}
-                                                            controls
-                                                            className="w-full h-auto"
-                                                            onError={(e) => {
-                                                                console.error('Erro ao carregar vídeo:', e);
-                                                                (e.target as HTMLVideoElement).poster = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar';
-                                                            }}
-                                                        />
+                                                        <div className="text-center">
+                                                            <div className="w-16 h-16 mx-auto mb-2 relative">
+                                                                <div className="absolute inset-0 border-4 border-blue-500 rounded-full animate-spin border-t-transparent"></div>
+                                                                <div className="absolute inset-0 flex items-center justify-center text-blue-500 text-sm">
+                                                                    {item.progress}%
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-sm text-gray-600 truncate max-w-full px-2">
+                                                                {item.name}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            )}
-                                        </Draggable>
-                                    ))}
-                                    {provided.placeholder}
-                                </div>
-                            )}
-                        </StrictModeDroppable>
-                    </DragDropContext>
+                                            </div>
+                                        ))}
+
+                                        {provided.placeholder}
+                                    </div>
+                                )}
+                            </StrictModeDroppable>
+                        </DragDropContext>
+                    </div>
                 </div>
             </div>
         </div>

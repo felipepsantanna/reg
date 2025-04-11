@@ -43,6 +43,14 @@ export async function POST(request: Request) {
             }
         }
 
+        // Validar campo dote apenas quando o sexo for "trans"
+        if (profileData.sexo === 'trans' && !profileData.tamanho_dote) {
+            return NextResponse.json(
+                { message: 'O campo Tamanho do Dote é obrigatório para pessoas trans' },
+                { status: 400 }
+            );
+        }
+
         // Validar arrays
         if (!Array.isArray(profileData.local_atendimento) || !Array.isArray(profileData.atende) || !Array.isArray(profileData.forma_pagamento)) {
             return NextResponse.json(

@@ -106,6 +106,12 @@ export default function UserProfileForm({ onSave }: UserProfileFormProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validar se o campo dote é obrigatório apenas quando o sexo for "trans"
+        if (formData.sexo === 'trans' && !formData.tamanho_dote) {
+            setError('O campo Tamanho do Dote é obrigatório para pessoas trans');
+            return;
+        }
+
         try {
             setLoading(true);
             setError('');
@@ -220,19 +226,22 @@ export default function UserProfileForm({ onSave }: UserProfileFormProps) {
                         />
                     </div>
 
-                    <div>
-                        <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
-                            Tamanho do Dote
-                        </label>
-                        <input
-                            type="text"
-                            id="tamanho_dote"
-                            name="tamanho_dote"
-                            value={formData.tamanho_dote}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
+                    {formData.sexo === 'trans' && (
+                        <div>
+                            <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
+                                Tamanho do Dote <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="tamanho_dote"
+                                name="tamanho_dote"
+                                value={formData.tamanho_dote}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -272,7 +281,7 @@ export default function UserProfileForm({ onSave }: UserProfileFormProps) {
                         Local de Atendimento
                     </label>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {['Motel', 'Hotel', 'Casa', 'Apartamento'].map(local => (
+                        {['motel', 'hotel', 'local próprio', 'residência'].map(local => (
                             <label key={local} className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -290,8 +299,8 @@ export default function UserProfileForm({ onSave }: UserProfileFormProps) {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Atende
                     </label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {['Homens', 'Mulheres', 'Casal', 'Trans'].map(tipo => (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {['homens', 'mulheres', 'casais'].map(tipo => (
                             <label key={tipo} className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -340,6 +349,8 @@ export default function UserProfileForm({ onSave }: UserProfileFormProps) {
                                 <option value="twitter">Twitter</option>
                                 <option value="facebook">Facebook</option>
                                 <option value="tiktok">TikTok</option>
+                                <option value="privacy">Privacy</option>
+                                <option value="onlyfans">OnlyFans</option>
                             </select>
                             <input
                                 type="url"
