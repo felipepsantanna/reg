@@ -1,11 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AiOutlineInfoCircle, AiOutlineSmile, AiOutlineLoading3Quarters, AiOutlineDrag } from 'react-icons/ai';
 import EmojiPicker from 'emoji-picker-react';
-import imageCompression from 'browser-image-compression';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { StrictModeDroppable } from './StrictModeDroppable';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { S3Client, PutObjectCommand, PutObjectCommandInput } from "@aws-sdk/client-s3";
+import CryptoJS from 'crypto-js';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import UserProfileForm, { UserProfileData } from './UserProfileForm';
+import StrictModeDroppable from './StrictModeDroppable';
 
 interface FormData {
     nome: string;
@@ -22,6 +41,8 @@ interface FormData {
     descricao: string;
     imagens: File[];
     videos: File[];
+    imagensUrls: string[]; // URLs dos arquivos no Bunny CDN
+    videosUrls: string[]; // URLs dos arquivos no Bunny CDN
 }
 
 interface ProcessingFile {
@@ -36,6 +57,16 @@ interface MediaItem {
     type: 'image' | 'video';
     url: string;
     file: File;
+    poster?: string;
+}
+
+// Função para gerar assinatura AWS v4
+function getSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string) {
+    const kDate = CryptoJS.HmacSHA256(dateStamp, "AWS4" + key);
+    const kRegion = CryptoJS.HmacSHA256(regionName, kDate);
+    const kService = CryptoJS.HmacSHA256(serviceName, kRegion);
+    const kSigning = CryptoJS.HmacSHA256("aws4_request", kService);
+    return kSigning;
 }
 
 export default function DashboardPage() {
@@ -53,6 +84,8 @@ export default function DashboardPage() {
         descricao: '',
         imagens: [],
         videos: [],
+        imagensUrls: [],
+        videosUrls: [],
     });
 
     const [activeTab, setActiveTab] = useState('editor');
@@ -62,6 +95,33 @@ export default function DashboardPage() {
     const [redesSociaisExpanded, setRedesSociaisExpanded] = useState(false);
     const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+    const [processingList, setProcessingList] = useState<{ id: string; name: string; progress: number }[]>([]);
+    const [layoutType, setLayoutType] = useState<'grid' | 'masonry'>('grid');
+    const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    useEffect(() => {
+        // Carregar mídias do usuário
+        const fetchMedia = async () => {
+            try {
+                const response = await fetch('/api/user/media');
+                if (response.ok) {
+                    const data = await response.json();
+                    setMediaItems(data.media || []);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar mídias:', error);
+            }
+        };
+
+        fetchMedia();
+    }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,66 +132,89 @@ export default function DashboardPage() {
         const fileId = Math.random().toString(36).substring(7);
 
         try {
-            // Opções de compressão
-            const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1920,
-                useWebWorker: true,
-                onProgress: (progress: number) => {
-                    setProcessingFiles(prev =>
-                        prev.map(f => f.id === fileId ? { ...f, progress } : f)
-                    );
-                }
-            };
+            // Atualizar progresso para 20% - Iniciando processamento
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 20 } : f)
+            );
 
-            // Comprimir a imagem
-            const compressedFile = await imageCompression(file, options);
-            const compressedUrl = URL.createObjectURL(compressedFile);
+            // Criar um elemento de imagem para processar
+            const img = new Image();
+            const imageUrl = URL.createObjectURL(file);
+            img.src = imageUrl;
 
-            // Criar um canvas para adicionar a watermark
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+
+            // Atualizar progresso para 40% - Imagem carregada
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 40 } : f)
+            );
+
+            // Criar canvas para adicionar marca d'água
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const img = new Image();
+            if (!ctx) {
+                throw new Error('Não foi possível obter o contexto do canvas');
+            }
 
-            return new Promise((resolve) => {
-                img.onload = () => {
-                    // Configurar o tamanho do canvas
-                    canvas.width = img.width;
-                    canvas.height = img.height;
+            // Configurar tamanho do canvas
+            canvas.width = img.width;
+            canvas.height = img.height;
 
-                    // Desenhar a imagem
-                    ctx?.drawImage(img, 0, 0);
+            // Desenhar imagem original
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-                    // Adicionar watermark no centro
-                    if (ctx) {
-                        const watermark = 'watermark';
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.font = '20px Arial';
+            // Atualizar progresso para 60% - Imagem desenhada no canvas
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 60 } : f)
+            );
 
-                        // Calcular posição central
-                        const metrics = ctx.measureText(watermark);
-                        const x = (canvas.width - metrics.width) / 2;
-                        const y = canvas.height / 2;
+            // Configurar marca d'água
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = '20px Arial';
+            const watermarkText = 'Acompanhantes Top';
+            const textMetrics = ctx.measureText(watermarkText);
 
-                        ctx.fillText(watermark, x, y);
-                    }
+            // Adicionar marca d'água em várias posições
+            for (let y = 50; y < canvas.height; y += 150) {
+                for (let x = 50; x < canvas.width; x += textMetrics.width + 100) {
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(-Math.PI / 6);
+                    ctx.fillText(watermarkText, 0, 0);
+                    ctx.restore();
+                }
+            }
 
-                    // Converter o canvas de volta para um arquivo
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const processedFile = new File([blob], file.name, {
-                                type: 'image/jpeg',
-                                lastModified: Date.now()
-                            });
-                            // Limpar recursos
-                            URL.revokeObjectURL(compressedUrl);
-                            setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
-                            resolve(processedFile);
-                        }
-                    }, 'image/jpeg', 0.8);
-                };
-                img.src = compressedUrl;
+            // Atualizar progresso para 80% - Marca d'água adicionada
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 80 } : f)
+            );
+
+            // Converter canvas para blob
+            const blob = await new Promise<Blob>((resolve) => {
+                canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.9);
             });
+
+            // Criar novo arquivo com marca d'água
+            const processedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+            });
+
+            // Atualizar progresso para 100% - Processamento concluído
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
+            );
+
+            // Limpar recursos
+            URL.revokeObjectURL(imageUrl);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
+
+            return processedFile;
         } catch (error) {
             console.error('Erro ao processar imagem:', error);
             setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
@@ -143,153 +226,112 @@ export default function DashboardPage() {
         const fileId = Math.random().toString(36).substring(7);
 
         try {
-            // Criar um elemento de vídeo
+            // Atualizar progresso para 20% - Iniciando processamento
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 20 } : f)
+            );
+
+            // Criar elementos de vídeo e canvas
             const video = document.createElement('video');
-            const videoUrl = URL.createObjectURL(file);
-            video.src = videoUrl;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Não foi possível obter o contexto do canvas');
+            }
 
-            return new Promise((resolve) => {
-                let isProcessing = true;
-                let processingTimeout: NodeJS.Timeout;
+            // Configurar vídeo
+            video.src = URL.createObjectURL(file);
+            await new Promise((resolve) => {
+                video.onloadedmetadata = resolve;
+            });
 
-                const cleanup = () => {
-                    if (processingTimeout) clearTimeout(processingTimeout);
-                    URL.revokeObjectURL(videoUrl);
-                    setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
-                };
+            // Atualizar progresso para 40% - Vídeo carregado
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 40 } : f)
+            );
 
-                // Quando o vídeo estiver pronto
-                video.onloadedmetadata = () => {
-                    // Criar um canvas para processar os frames
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
+            // Configurar canvas com dimensões do vídeo
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
 
-                    if (!ctx) {
-                        console.error('Não foi possível obter o contexto do canvas');
-                        cleanup();
-                        resolve(file);
-                        return;
+            // Configurar gravação
+            const stream = canvas.captureStream();
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9'
+            });
+
+            const chunks: Blob[] = [];
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+
+            // Configurar marca d'água
+            const watermarkText = 'Acompanhantes Top';
+            ctx.font = '20px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+
+            // Atualizar progresso para 60% - Configurações iniciais concluídas
+            setProcessingFiles(prev =>
+                prev.map(f => f.id === fileId ? { ...f, progress: 60 } : f)
+            );
+
+            // Iniciar gravação
+            mediaRecorder.start(1000);
+            video.play();
+
+            let frameCount = 0;
+            const totalFrames = video.duration * 30; // Estimativa de 30 fps
+
+            const processFrame = () => {
+                if (video.ended || video.paused) {
+                    mediaRecorder.stop();
+                    return;
+                }
+
+                // Desenhar frame atual
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Adicionar marca d'água
+                for (let y = 50; y < canvas.height; y += 150) {
+                    for (let x = 50; x < canvas.width; x += 200) {
+                        ctx.save();
+                        ctx.translate(x, y);
+                        ctx.rotate(-Math.PI / 6);
+                        ctx.fillText(watermarkText, 0, 0);
+                        ctx.restore();
                     }
+                }
 
-                    // Configurar tamanho do canvas
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                frameCount++;
+                // Calcular progresso com base nos frames processados
+                const progress = Math.min(60 + (frameCount / totalFrames) * 40, 99);
+                setProcessingFiles(prev =>
+                    prev.map(f => f.id === fileId ? { ...f, progress: Math.round(progress) } : f)
+                );
 
-                    // Criar um MediaRecorder para gravar o vídeo processado
-                    const stream = canvas.captureStream();
-                    const mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'video/webm;codecs=vp9'
+                requestAnimationFrame(processFrame);
+            };
+
+            video.requestVideoFrameCallback(processFrame);
+
+            // Aguardar processamento completo
+            return new Promise((resolve) => {
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const processedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webm'), {
+                        type: 'video/webm',
+                        lastModified: Date.now()
                     });
 
-                    const chunks: Blob[] = [];
-                    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+                    // Atualizar progresso para 100% - Processamento concluído
+                    setProcessingFiles(prev =>
+                        prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
+                    );
 
-                    // Função para processar um frame
-                    const processFrame = () => {
-                        if (!isProcessing) return;
+                    // Limpar recursos
+                    URL.revokeObjectURL(video.src);
+                    setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
 
-                        // Desenhar o frame atual no canvas
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                        // Adicionar watermark
-                        const watermark = 'watermark';
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                        ctx.font = 'bold 24px Arial';
-
-                        // Calcular posição central
-                        const metrics = ctx.measureText(watermark);
-                        const x = (canvas.width - metrics.width) / 2;
-                        const y = canvas.height / 2;
-
-                        // Adicionar sombra para melhor visibilidade
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                        ctx.shadowBlur = 4;
-                        ctx.shadowOffsetX = 2;
-                        ctx.shadowOffsetY = 2;
-
-                        // Desenhar o texto
-                        ctx.fillText(watermark, x, y);
-
-                        // Resetar sombra
-                        ctx.shadowColor = 'transparent';
-                        ctx.shadowBlur = 0;
-                        ctx.shadowOffsetX = 0;
-                        ctx.shadowOffsetY = 0;
-
-                        // Atualizar progresso
-                        const progress = Math.min((video.currentTime / video.duration) * 100, 99);
-                        setProcessingFiles(prev =>
-                            prev.map(f => f.id === fileId ? { ...f, progress } : f)
-                        );
-
-                        // Continuar processando se o vídeo não terminou
-                        if (!video.ended) {
-                            requestAnimationFrame(processFrame);
-                        } else {
-                            isProcessing = false;
-                            mediaRecorder.stop();
-                        }
-                    };
-
-                    // Quando o MediaRecorder parar
-                    mediaRecorder.onstop = () => {
-                        if (chunks.length > 0) {
-                            const blob = new Blob(chunks, { type: 'video/webm' });
-                            const processedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webm'), {
-                                type: 'video/webm',
-                                lastModified: Date.now()
-                            });
-
-                            // Atualizar progresso para 100%
-                            setProcessingFiles(prev =>
-                                prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
-                            );
-
-                            // Pequeno delay para mostrar 100% antes de limpar
-                            setTimeout(() => {
-                                cleanup();
-                                resolve(processedFile);
-                            }, 1000);
-                        } else {
-                            console.warn('Falha ao processar vídeo, retornando arquivo original');
-                            cleanup();
-                            resolve(file);
-                        }
-                    };
-
-                    // Iniciar processamento
-                    try {
-                        mediaRecorder.start(1000); // Capturar frames a cada 1 segundo
-                        video.play().catch(e => {
-                            console.error('Erro ao reproduzir vídeo:', e);
-                            cleanup();
-                            resolve(file);
-                        });
-                        processFrame();
-                    } catch (e) {
-                        console.error('Erro ao iniciar processamento:', e);
-                        cleanup();
-                        resolve(file);
-                    }
+                    resolve(processedFile);
                 };
-
-                // Tratamento de erros
-                video.onerror = (error) => {
-                    console.error('Erro ao carregar vídeo:', error);
-                    isProcessing = false;
-                    cleanup();
-                    resolve(file);
-                };
-
-                // Timeout para evitar travamentos
-                processingTimeout = setTimeout(() => {
-                    if (isProcessing) {
-                        console.error('Timeout ao processar vídeo');
-                        isProcessing = false;
-                        cleanup();
-                        resolve(file);
-                    }
-                }, 60000); // 60 segundos de timeout
             });
         } catch (error) {
             console.error('Erro ao processar vídeo:', error);
@@ -298,16 +340,104 @@ export default function DashboardPage() {
         }
     };
 
+    const uploadToBunnyCDN = async (file: File): Promise<string> => {
+        const libraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID;
+        const accessKey = process.env.NEXT_PUBLIC_BUNNY_ACCESS_KEY;
+
+        if (!libraryId || !accessKey) {
+            throw new Error('Configurações do Bunny CDN não encontradas');
+        }
+
+        try {
+            // Primeiro, criar o vídeo na biblioteca
+            const createEndpoint = `https://video.bunnycdn.com/library/${libraryId}/videos`;
+            const createResponse = await fetch(createEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'AccessKey': accessKey,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: file.name,
+                    collectionId: null,
+                    length: 0,
+                    status: 'uploading'
+                })
+            });
+
+            if (!createResponse.ok) {
+                throw new Error(`Erro ao criar vídeo: ${createResponse.statusText}`);
+            }
+
+            const createData = await createResponse.json();
+            const videoId = createData.guid;
+
+            // Agora, fazer o upload do arquivo
+            const uploadEndpoint = `https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`;
+            const uploadResponse = await fetch(uploadEndpoint, {
+                method: 'PUT',
+                headers: {
+                    'Accept': 'application/json',
+                    'AccessKey': accessKey,
+                    'Content-Type': file.type,
+                },
+                body: file
+            });
+
+            if (!uploadResponse.ok) {
+                throw new Error(`Erro ao fazer upload do vídeo: ${uploadResponse.statusText}`);
+            }
+
+            // URL da thumbnail
+            const thumbnailUrl = `https://vz-ddb4a7c6-db0.b-cdn.net/${videoId}/thumbnail.jpg`;
+            return thumbnailUrl; // Retornar a URL da thumbnail
+        } catch (error) {
+            console.error('Erro ao fazer upload para Bunny CDN:', error);
+            throw error;
+        }
+    };
+
+    const uploadToCloudflare = async (file: File, fileType: 'image' | 'video'): Promise<string> => {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('fileType', fileType);
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Erro ao fazer upload');
+            }
+
+            const data = await response.json();
+            return data.url;
+        } catch (error) {
+            console.error('Erro ao fazer upload para Cloudflare:', error);
+            throw error;
+        }
+    };
+
     const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         const maxFotos = Number(process.env.NEXT_PUBLIC_MAX_FOTOS) || 7;
         const maxVideos = Number(process.env.NEXT_PUBLIC_MAX_VIDEOS) || 3;
-        const maxFotoSize = Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) || 10485760;
-        const maxVideoSize = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) || 52428800;
+        const maxFotoSize = 3 * 1024 * 1024; // 3MB
+        const maxVideoSize = 15 * 1024 * 1024; // 15MB
 
         // Separar arquivos por tipo
-        const imagens = files.filter(file => file.type.startsWith('image/'));
-        const videos = files.filter(file => file.type.startsWith('video/'));
+        const imagens = files.filter(file =>
+            file.type.startsWith('image/') &&
+            ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+        );
+        const videos = files.filter(file =>
+            file.type.startsWith('video/') &&
+            ['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)
+        );
 
         // Validar e limitar imagens
         const validImagens = imagens
@@ -315,7 +445,7 @@ export default function DashboardPage() {
             .slice(0, maxFotos);
 
         if (validImagens.length < imagens.length) {
-            alert(`Algumas imagens foram ignoradas por excederem o tamanho máximo de ${maxFotoSize / 1024 / 1024}MB`);
+            alert(`Algumas imagens foram ignoradas por excederem o tamanho máximo de 3MB ou formato não suportado`);
         }
 
         // Validar e limitar vídeos
@@ -324,7 +454,7 @@ export default function DashboardPage() {
             .slice(0, maxVideos);
 
         if (validVideos.length < videos.length) {
-            alert(`Alguns vídeos foram ignorados por excederem o tamanho máximo de ${maxVideoSize / 1024 / 1024}MB`);
+            alert(`Alguns vídeos foram ignorados por excederem o tamanho máximo de 15MB ou formato não suportado`);
         }
 
         try {
@@ -351,35 +481,41 @@ export default function DashboardPage() {
             // Atualizar estado de processamento
             setProcessingFiles(initialProcessingFiles);
 
-            // Processar arquivos em paralelo
+            // Processar e fazer upload dos arquivos em paralelo
             const processedImagens = await Promise.all(
-                validImagens.map((file, index) =>
-                    processImage(file).finally(() => {
-                        setProcessingFiles(prev => prev.filter(f => f.id !== imageIds[index]));
-                    })
-                )
+                validImagens.map(async (file, index) => {
+                    // Processar imagem com marca d'água
+                    const processedFile = await processImage(file);
+                    // Upload para Cloudflare
+                    const cdnUrl = await uploadToCloudflare(file, 'image');
+                    return { file: file, cdnUrl };
+                })
             );
 
             const processedVideos = await Promise.all(
-                validVideos.map((file, index) =>
-                    processVideo(file).finally(() => {
-                        setProcessingFiles(prev => prev.filter(f => f.id !== videoIds[index]));
-                    })
-                )
+                validVideos.map(async (file, index) => {
+                    // Processar vídeo com marca d'água
+                    const processedFile = await processVideo(file);
+                    // Upload para Bunny CDN
+                    const thumbnailUrl = await uploadToBunnyCDN(processedFile);
+                    console.log(thumbnailUrl);
+                    return { file: processedFile, cdnUrl: thumbnailUrl };
+                })
             );
 
             // Criar novos itens de mídia
             const newMediaItems: MediaItem[] = [
-                ...processedImagens.map((file, index) => ({
+                ...processedImagens.map(({ file, cdnUrl }, index) => ({
                     id: `img-${Date.now()}-${index}`,
                     type: 'image' as const,
-                    url: URL.createObjectURL(file),
+                    url: cdnUrl,
                     file
                 })),
-                ...processedVideos.map((file, index) => ({
+                ...processedVideos.map(({ file, cdnUrl }, index) => ({
                     id: `video-${Date.now()}-${index}`,
                     type: 'video' as const,
-                    url: URL.createObjectURL(file),
+                    url: '', // Deixe a URL do vídeo vazia por enquanto
+                    poster: cdnUrl, // Use a URL da thumbnail como poster
                     file
                 }))
             ];
@@ -388,41 +524,59 @@ export default function DashboardPage() {
             setMediaItems(prev => [...prev, ...newMediaItems]);
             setFormData(prev => ({
                 ...prev,
-                imagens: [...prev.imagens, ...processedImagens],
-                videos: [...prev.videos, ...processedVideos]
+                imagens: [...prev.imagens, ...processedImagens.map(p => p.file)],
+                videos: [...prev.videos, ...processedVideos.map(p => p.file)],
+                imagensUrls: [...prev.imagensUrls, ...processedImagens.map(p => p.cdnUrl)],
+                videosUrls: [...prev.videosUrls, ...processedVideos.map(p => p.cdnUrl)]
             }));
+
+            // Limpar lista de processamento
+            setProcessingFiles([]);
         } catch (error) {
             console.error('Erro ao processar arquivos:', error);
             alert('Ocorreu um erro ao processar os arquivos. Por favor, tente novamente.');
+            setProcessingFiles([]);
         }
     };
 
-    const handleDragEnd = (result: any) => {
+    const handleDragEnd = (result: DropResult) => {
         if (!result.destination) return;
 
-        const items = Array.from(mediaItems);
-        const [reorderedItem] = items.splice(result.source.index, 1);
-        items.splice(result.destination.index, 0, reorderedItem);
+        const { source, destination } = result;
 
-        setMediaItems(items);
+        if (source.droppableId === destination.droppableId && source.index === destination.index) {
+            return;
+        }
 
-        // Atualizar formData com a nova ordem
-        const newImagens: File[] = [];
-        const newVideos: File[] = [];
+        setMediaItems((items) => {
+            const newItems = arrayMove(items, source.index, destination.index);
 
-        items.forEach(item => {
-            if (item.type === 'image') {
-                newImagens.push(item.file);
-            } else {
-                newVideos.push(item.file);
-            }
+            // Atualizar formData com a nova ordem
+            const newImagens: File[] = [];
+            const newVideos: File[] = [];
+            const newImagensUrls: string[] = [];
+            const newVideosUrls: string[] = [];
+
+            newItems.forEach(item => {
+                if (item.type === 'image') {
+                    newImagens.push(item.file);
+                    newImagensUrls.push(item.url);
+                } else {
+                    newVideos.push(item.file);
+                    newVideosUrls.push(item.url);
+                }
+            });
+
+            setFormData(prev => ({
+                ...prev,
+                imagens: newImagens,
+                videos: newVideos,
+                imagensUrls: newImagensUrls,
+                videosUrls: newVideosUrls
+            }));
+
+            return newItems;
         });
-
-        setFormData(prev => ({
-            ...prev,
-            imagens: newImagens,
-            videos: newVideos
-        }));
     };
 
     const removeMedia = (id: string) => {
@@ -477,407 +631,252 @@ export default function DashboardPage() {
         document.getElementById('file-upload')?.click();
     };
 
+    const handleLayoutChange = (type: 'grid' | 'masonry') => {
+        setLayoutType(type);
+
+        // Salvar preferência de layout
+        fetch('/api/user/layout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ layoutType: type }),
+        }).catch(error => {
+            console.error('Erro ao salvar layout:', error);
+        });
+    };
+
+    const handleProfileSave = (profileData: UserProfileData) => {
+        setUserProfile(profileData);
+    };
+
     return (
-        <div className="form-container">
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-surface-700">Formulário de Cadastro</h1>
-                <button className="form-button form-button-secondary">
-                    Carregar Dados Exemplo
-                </button>
-            </div>
+        <div className="min-h-screen bg-gray-100 p-8">
+            <div className="max-w-6xl mx-auto">
+                <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="form-section">
-                    <h2 className="form-section-title">Informações Pessoais</h2>
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label htmlFor="nome" className="form-label">
-                                Nome *
-                            </label>
-                            <input
-                                id="nome"
-                                type="text"
-                                required
-                                placeholder="Digite seu nome completo"
-                                value={formData.nome}
-                                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                                className="form-input"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="telefone" className="form-label">
-                                Telefone *
-                            </label>
-                            <input
-                                id="telefone"
-                                type="tel"
-                                required
-                                placeholder="(00) 00000-0000"
-                                value={formData.telefone}
-                                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                                className="form-input"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label htmlFor="sexo" className="form-label">
-                                Sexo *
-                            </label>
-                            <select
-                                id="sexo"
-                                required
-                                value={formData.sexo}
-                                onChange={(e) => setFormData({ ...formData, sexo: e.target.value })}
-                                className="form-select"
-                            >
-                                <option value="">Selecione seu sexo</option>
-                                <option value="mulher">Mulher</option>
-                                <option value="homem">Homem</option>
-                                <option value="travesti">Travesti</option>
-                            </select>
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="idade" className="form-label">
-                                Idade *
-                            </label>
-                            <input
-                                id="idade"
-                                type="number"
-                                required
-                                placeholder="Sua idade"
-                                value={formData.idade}
-                                onChange={(e) => setFormData({ ...formData, idade: e.target.value })}
-                                className="form-input"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="form-grid">
-                        <div className="form-group">
-                            <label htmlFor="altura" className="form-label">
-                                Altura (cm) *
-                            </label>
-                            <input
-                                id="altura"
-                                type="number"
-                                required
-                                placeholder="Sua altura em cm"
-                                value={formData.altura}
-                                onChange={(e) => setFormData({ ...formData, altura: e.target.value })}
-                                className="form-input"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="peso" className="form-label">
-                                Peso (kg) *
-                            </label>
-                            <input
-                                id="peso"
-                                type="number"
-                                required
-                                placeholder="Seu peso em kg"
-                                value={formData.peso}
-                                onChange={(e) => setFormData({ ...formData, peso: e.target.value })}
-                                className="form-input"
-                            />
-                        </div>
-                    </div>
+                {/* Formulário de cadastro */}
+                <div className="mb-8">
+                    <UserProfileForm onSave={handleProfileSave} />
                 </div>
 
-                <div className="form-section">
-                    <h2 className="form-section-title">Informações de Atendimento</h2>
+                {/* Upload de mídia */}
+                <div className="bg-white rounded-lg shadow p-6 mb-8">
+                    <h2 className="text-2xl font-bold mb-4">Suas Mídias</h2>
 
-                    <div className="form-group">
-                        <label className="form-label">
-                            Local de Atendimento * <AiOutlineInfoCircle size={16} />
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Adicionar Imagens ou Vídeos
                         </label>
-                        <select
+                        <input
+                            type="file"
+                            accept="image/*,video/*"
                             multiple
-                            value={formData.localAtendimento}
-                            onChange={(e) => {
-                                const values = Array.from(e.target.selectedOptions, option => option.value);
-                                setFormData({ ...formData, localAtendimento: values });
-                            }}
-                            className="form-select form-multiselect"
-                        >
-                            <option value="aceita-viajar">Aceita viajar</option>
-                            <option value="domicilio">Domicílio</option>
-                            <option value="hoteis">Hotéis</option>
-                            <option value="local-proprio">Local próprio</option>
-                            <option value="moteis">Motéis</option>
-                        </select>
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label">
-                            Atende * <AiOutlineInfoCircle size={16} />
-                        </label>
-                        <select
-                            multiple
-                            value={formData.atende}
-                            onChange={(e) => {
-                                const values = Array.from(e.target.selectedOptions, option => option.value);
-                                setFormData({ ...formData, atende: values });
-                            }}
-                            className="form-select form-multiselect"
-                        >
-                            <option value="homem">Homem</option>
-                            <option value="mulheres">Mulheres</option>
-                            <option value="casais">Casais</option>
-                        </select>
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label">
-                            Forma de Pagamento * <AiOutlineInfoCircle size={16} />
-                        </label>
-                        <select
-                            multiple
-                            value={formData.formaPagamento}
-                            onChange={(e) => {
-                                const values = Array.from(e.target.selectedOptions, option => option.value);
-                                setFormData({ ...formData, formaPagamento: values });
-                            }}
-                            className="form-select form-multiselect"
-                        >
-                            <option value="credito">Cartão de crédito</option>
-                            <option value="debito">Cartão de débito</option>
-                            <option value="dinheiro">Dinheiro</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div className="form-section">
-                    <h2 className="form-section-title">Descrição *</h2>
-                    <div className="flex space-x-4 mb-4 border-b border-surface-200">
-                        <button
-                            type="button"
-                            className={`pb-2 px-4 text-sm font-medium transition-colors relative ${activeTab === 'editor'
-                                ? 'text-surface-700 border-b-2 border-primary-500'
-                                : 'text-surface-500 hover:text-surface-700'
-                                }`}
-                            onClick={() => setActiveTab('editor')}
-                        >
-                            Editor
-                        </button>
-                        <button
-                            type="button"
-                            className={`pb-2 px-4 text-sm font-medium transition-colors relative ${activeTab === 'visualizacao'
-                                ? 'text-surface-700 border-b-2 border-primary-500'
-                                : 'text-surface-500 hover:text-surface-700'
-                                }`}
-                            onClick={() => setActiveTab('visualizacao')}
-                        >
-                            Visualização
-                        </button>
-                    </div>
-
-                    <div className="form-group">
-                        <textarea
-                            id="descricao"
-                            required
-                            value={formData.descricao}
-                            onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                            className="form-input min-h-[200px] resize-y"
-                            placeholder="Descreva seus serviços, experiência, etc..."
+                            onChange={handleMediaChange}
+                            className="block w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-blue-50 file:text-blue-700
+                                hover:file:bg-blue-100"
                         />
-                        <div className="relative">
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                    className="form-button-secondary p-2"
-                                >
-                                    <AiOutlineSmile size={20} />
-                                </button>
-                                <span className="text-sm text-surface-500">
-                                    Você pode usar tags HTML básicas como <b>&lt;b&gt;</b>, <b>&lt;i&gt;</b>, <b>&lt;u&gt;</b>, <b>&lt;p&gt;</b>, <b>&lt;br&gt;</b>, <b>&lt;ul&gt;</b>, <b>&lt;li&gt;</b>, etc. e emojis
-                                </span>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Imagens até 10MB, vídeos até 100MB
+                        </p>
+                    </div>
+
+                    {/* Lista de processamento */}
+                    {processingList.length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="text-lg font-medium mb-2">Processando arquivos...</h3>
+                            <div className="space-y-2">
+                                {processingList.map(item => (
+                                    <div key={item.id} className="flex items-center">
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                            <div
+                                                className="bg-blue-600 h-2.5 rounded-full"
+                                                style={{ width: `${item.progress}%` }}
+                                            ></div>
+                                        </div>
+                                        <span className="ml-2 text-sm text-gray-600">{item.name}</span>
+                                        <span className="ml-2 text-sm text-gray-600">{item.progress}%</span>
+                                    </div>
+                                ))}
                             </div>
-                            {showEmojiPicker && (
-                                <div className="absolute bottom-full right-0 z-10">
-                                    <EmojiPicker onEmojiClick={onEmojiClick} />
+                        </div>
+                    )}
+
+                    {/* Controles de layout */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Layout
+                        </label>
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={() => handleLayoutChange('grid')}
+                                className={`px-4 py-2 rounded ${layoutType === 'grid'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700'
+                                    }`}
+                            >
+                                Grade
+                            </button>
+                            <button
+                                onClick={() => handleLayoutChange('masonry')}
+                                className={`px-4 py-2 rounded ${layoutType === 'masonry'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700'
+                                    }`}
+                            >
+                                Masonry
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Galeria de mídias */}
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                        <StrictModeDroppable droppableId="media-gallery">
+                            {(provided: any) => (
+                                <div
+                                    {...provided.droppableProps}
+                                    ref={provided.innerRef}
+                                    className={`grid gap-4 ${layoutType === 'grid'
+                                        ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                                        : 'columns-1 md:columns-2 lg:columns-3'
+                                        }`}
+                                >
+                                    {mediaItems.map((item, index) => (
+                                        <Draggable key={item.id} draggableId={item.id} index={index}>
+                                            {(provided: any) => (
+                                                <div
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    {...provided.dragHandleProps}
+                                                    className={`bg-gray-100 rounded-lg overflow-hidden ${layoutType === 'masonry' ? 'break-inside-avoid mb-4' : ''}`}
+                                                >
+                                                    {item.type === 'image' ? (
+                                                        <img
+                                                            src={item.url}
+                                                            alt="Mídia"
+                                                            className="w-full h-auto object-cover"
+                                                            onError={(e) => {
+                                                                console.error('Erro ao carregar imagem:', e);
+                                                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <video
+                                                            src={item.url}
+                                                            poster={item.poster}
+                                                            controls
+                                                            className="w-full h-auto"
+                                                            onError={(e) => {
+                                                                console.error('Erro ao carregar vídeo:', e);
+                                                                (e.target as HTMLVideoElement).poster = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar';
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
                                 </div>
                             )}
+                        </StrictModeDroppable>
+                    </DragDropContext>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Componente para item arrastável
+function SortableMediaItem({
+    item,
+    index,
+    onRemove
+}: {
+    item: MediaItem;
+    index: number;
+    onRemove: (id: string) => void;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: item.id });
+    let retryCount = 0;
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+    console.log(item)
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="relative group bg-surface-100 rounded-lg overflow-hidden"
+        >
+            <div className="absolute top-2 left-2 z-20 bg-black/70 text-white px-2 py-1 rounded text-sm">
+                {index + 1}
+            </div>
+
+            {/* Container principal da mídia */}
+            <div className="relative w-full h-48">
+
+                {item.type === 'image' ? (
+                    <img
+                        src={item.url}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            console.error('Erro ao carregar imagem:', e);
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar+imagem';
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full">
+                        <video
+                            src={item.url}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                            poster={item.poster}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
+            </div>
 
-                <div className="form-section">
-                    <h2 className="form-section-title">Redes Sociais</h2>
-                    {formData.redesSociais.length === 0 && !redesSociaisExpanded ? (
-                        <div className="text-surface-500 italic mb-4">
-                            Nenhuma rede social adicionada. Clique em "Adicionar" para incluir suas redes sociais.
-                        </div>
-                    ) : (
-                        formData.redesSociais.map((rede, index) => (
-                            <div key={index} className="flex items-center gap-4 p-3 bg-surface-100 rounded-lg mb-3">
-                                <select
-                                    value={rede.tipo}
-                                    onChange={(e) => handleRedeSocialChange(index, 'tipo', e.target.value)}
-                                    className="form-select w-[200px]"
-                                >
-                                    <option value="">Selecione...</option>
-                                    <option value="privacy">Privacy</option>
-                                    <option value="twitter">Twitter</option>
-                                    <option value="instagram">Instagram</option>
-                                    <option value="onlyfans">OnlyFans</option>
-                                </select>
-                                <input
-                                    type="url"
-                                    placeholder="URL do perfil"
-                                    value={rede.url}
-                                    onChange={(e) => handleRedeSocialChange(index, 'url', e.target.value)}
-                                    className="form-input flex-1"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => removeRedeSocial(index)}
-                                    className="form-button-destructive p-2"
-                                >
-                                    Remover
-                                </button>
-                            </div>
-                        ))
-                    )}
-                    <button
-                        type="button"
-                        onClick={addRedeSocial}
-                        className="form-button-secondary mt-4"
-                    >
-                        + Adicionar Rede Social
-                    </button>
-                </div>
-
-                <div className="form-section">
-                    <div className="bg-surface-100 rounded-lg p-4 mb-6">
-                        <h3 className="font-semibold mb-2 text-surface-700">Limites de upload:</h3>
-                        <ul className="space-y-1 text-sm text-surface-500">
-                            <li>• Máximo de {process.env.NEXT_PUBLIC_MAX_FOTOS || 7} fotos (até {(Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) / 1024 / 1024) || 10}MB cada)</li>
-                            <li>• Máximo de {process.env.NEXT_PUBLIC_MAX_VIDEOS || 3} vídeos (até {(Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) / 1024 / 1024) || 50}MB cada)</li>
-                            <li>• Formatos aceitos: JPG, PNG, GIF, WEBP, MP4, WEBM, MOV</li>
-                            <li>• As imagens serão comprimidas e receberão marca d'água automaticamente</li>
-                            <li>• Todos os arquivos serão enviados para CDN antes de salvar o cadastro</li>
-                        </ul>
+            {/* Barra inferior com informações e controles */}
+            <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div {...attributes} {...listeners} className="cursor-move">
+                        <AiOutlineDrag className="text-white text-lg" />
                     </div>
-
-                    <div className="form-group">
-                        <label className="form-label">
-                            Arquivos (Imagens e Vídeos) *
-                        </label>
-                        <div className="upload-box" onClick={handleUploadClick}>
-                            <div>Clique para selecionar ou arraste arquivos aqui</div>
-                            <div className="text-sm text-surface-500 mt-2">
-                                Imagens (JPG, PNG, GIF, WEBP) • Máximo 7 fotos • Até 10 MB
-                            </div>
-                            <div className="text-sm text-surface-500">
-                                Vídeos (MP4, WEBM, MOV) • Máximo 3 vídeos • Até 50 MB
-                            </div>
-                            <input
-                                id="file-upload"
-                                type="file"
-                                multiple
-                                accept="image/*,video/*"
-                                onChange={handleMediaChange}
-                                className="hidden"
-                            />
-                        </div>
-                        <div className="flex justify-end gap-6 text-sm text-surface-500 mt-2">
-                            <span>Fotos: {formData.imagens.length}/7</span>
-                            <span>Vídeos: {formData.videos.length}/3</span>
-                        </div>
-                    </div>
-
-                    {processingFiles.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                            {processingFiles.map(file => (
-                                <div key={file.id} className="flex items-center gap-2">
-                                    <AiOutlineLoading3Quarters className="animate-spin text-primary-500" />
-                                    <span className="text-sm text-surface-600">
-                                        Processando {file.type === 'image' ? 'imagem' : 'vídeo'}: {file.name}
-                                    </span>
-                                    <span className="text-sm text-surface-500">
-                                        {Math.round(file.progress)}%
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {(mediaItems.length > 0) && (
-                        <div className="mt-4">
-                            <DragDropContext onDragEnd={handleDragEnd}>
-                                <StrictModeDroppable droppableId="media-grid" direction="horizontal">
-                                    {(provided) => (
-                                        <div
-                                            {...provided.droppableProps}
-                                            ref={provided.innerRef}
-                                            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                                        >
-                                            {mediaItems.map((item, index) => (
-                                                <Draggable
-                                                    key={item.id}
-                                                    draggableId={item.id}
-                                                    index={index}
-                                                >
-                                                    {(provided) => (
-                                                        <div
-                                                            ref={provided.innerRef}
-                                                            {...provided.draggableProps}
-                                                            className="relative group cursor-move"
-                                                        >
-                                                            <div
-                                                                {...provided.dragHandleProps}
-                                                                className="absolute inset-0 z-10 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"
-                                                            >
-                                                                <div className="absolute top-2 left-2">
-                                                                    <AiOutlineDrag className="text-white" />
-                                                                </div>
-                                                                <div className="absolute top-2 right-2">
-                                                                    <button
-                                                                        onClick={() => removeMedia(item.id)}
-                                                                        className="text-white text-sm hover:text-red-500"
-                                                                    >
-                                                                        ×
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            {item.type === 'image' ? (
-                                                                <img
-                                                                    src={item.url}
-                                                                    alt={`Preview ${index + 1}`}
-                                                                    className="w-full h-48 object-cover rounded-lg"
-                                                                />
-                                                            ) : (
-                                                                <video
-                                                                    src={item.url}
-                                                                    className="w-full h-48 object-cover rounded-lg"
-                                                                    preload="metadata"
-                                                                    poster={item.url}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </Draggable>
-                                            ))}
-                                            {provided.placeholder}
-                                        </div>
-                                    )}
-                                </StrictModeDroppable>
-                            </DragDropContext>
-                        </div>
-                    )}
+                    <span className="text-sm">
+                        {item.type === 'image' ? 'Imagem' : 'Vídeo'}
+                    </span>
                 </div>
-
-                <button type="submit" className="form-button form-button-primary w-full">
-                    Enviar Cadastro
+                <button
+                    onClick={() => onRemove(item.id)}
+                    className="text-white hover:text-red-500 text-lg"
+                >
+                    ×
                 </button>
-            </form>
+            </div>
         </div>
     );
 } 

@@ -1,16 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Droppable, DroppableProps, DroppableProvided, DroppableStateSnapshot } from 'react-beautiful-dnd';
 
-type StrictModeDroppableProps = Omit<DroppableProps, 'children'> & {
+interface StrictModeDroppableProps extends Omit<DroppableProps, 'children'> {
     children: (provided: DroppableProvided, snapshot: DroppableStateSnapshot) => React.ReactElement;
-};
+}
 
-export const StrictModeDroppable = ({
-    children,
-    droppableId,
-    type = 'DEFAULT',
-    ...props
-}: StrictModeDroppableProps) => {
+export default function StrictModeDroppable({ children, ...props }: StrictModeDroppableProps) {
     const [enabled, setEnabled] = useState(false);
 
     useEffect(() => {
@@ -25,9 +20,5 @@ export const StrictModeDroppable = ({
         return null;
     }
 
-    return (
-        <Droppable droppableId={droppableId} type={type} {...props}>
-            {(provided, snapshot) => children(provided, snapshot)}
-        </Droppable>
-    );
-}; 
+    return <Droppable {...props}>{children}</Droppable>;
+} 
