@@ -2,13 +2,18 @@ import { NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
-import { findUserByEmail, initializeDB } from '@/lib/db';
+import pool from '@/lib/db';
+import { RowDataPacket } from 'mysql2';
+
+interface UserRow extends RowDataPacket {
+    id: number;
+    email: string;
+    password: string;
+    role: 'admin' | 'anunciante';
+}
 
 export async function POST(request: Request) {
     try {
-        // Inicializar o banco de dados com usuários de teste
-        await initializeDB();
-
         const { email, password } = await request.json();
 
         // Validar campos obrigatórios
@@ -19,8 +24,13 @@ export async function POST(request: Request) {
             );
         }
 
-        // Buscar usuário
-        const user = await findUserByEmail(email);
+        // Buscar usuário no banco de dados
+        const [rows] = await pool.execute<UserRow[]>(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
+
+        const user = rows[0];
         if (!user) {
             return NextResponse.json(
                 { error: 'Usuário não encontrado' },
@@ -28,10 +38,10 @@ export async function POST(request: Request) {
             );
         }
 
-        // Verificar se é um usuário admin
-        if (user.role !== 'admin') {
+        // Impedir que admins façam login na rota normal
+        if (user.role === 'admin') {
             return NextResponse.json(
-                { error: 'Acesso não autorizado' },
+                { error: 'Administradores devem usar a rota de login administrativo' },
                 { status: 403 }
             );
         }
@@ -57,21 +67,17 @@ export async function POST(request: Request) {
             .sign(secret);
 
         // Configurar cookie
-        cookies().set('admin_token', token, {
+        cookies().set('auth_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
             maxAge: 60 * 60 * 24 // 24 horas
         });
 
+        // Retornar resposta com redirecionamento baseado no papel do usuário
         return NextResponse.json({
             success: true,
-            user: {
-                id: user.id,
-                email: user.email,
-                nome: user.nome,
-                role: user.role
-            }
+            redirectTo: user.role === 'admin' ? '/admin' : '/dashboard'
         });
     } catch (error) {
         console.error('Erro no login:', error);

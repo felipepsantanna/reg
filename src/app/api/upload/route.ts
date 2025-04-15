@@ -5,7 +5,6 @@ export async function POST(request: Request) {
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        const fileType = formData.get('fileType') as string;
 
         if (!file) {
             return NextResponse.json(

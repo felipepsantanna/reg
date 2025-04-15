@@ -30,7 +30,7 @@ export default function AdminDashboard() {
         try {
             const response = await fetch('/api/admin/cadastros');
             if (response.ok) {
-                const data = await response.json();
+                const data = await response.json() as Cadastro[];
                 setCadastros(data);
             }
         } catch (error) {
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
                             </label>
                             <select
                                 value={filtroStatus}
-                                onChange={(e) => setFiltroStatus(e.target.value as 'todos' | 'ativo' | 'inativo')}
+                                onChange={(e) => setFiltroStatus((e.target as HTMLSelectElement).value as 'todos' | 'ativo' | 'inativo')}
                                 className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                             >
                                 <option value="todos">Todos</option>

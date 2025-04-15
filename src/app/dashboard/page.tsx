@@ -1,30 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AiOutlineInfoCircle, AiOutlineSmile, AiOutlineLoading3Quarters, AiOutlineDrag } from 'react-icons/ai';
-import EmojiPicker from 'emoji-picker-react';
+import { AiOutlineDrag } from 'react-icons/ai';
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragEndEvent
-} from '@dnd-kit/core';
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    useSortable,
-    horizontalListSortingStrategy,
+    useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { S3Client, PutObjectCommand, PutObjectCommandInput } from "@aws-sdk/client-s3";
-import CryptoJS from 'crypto-js';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import UserProfileForm, { UserProfileData } from './UserProfileForm';
 import StrictModeDroppable from './StrictModeDroppable';
+import { useRouter } from 'next/navigation';
 
 interface FormData {
     nome: string;
@@ -47,9 +32,10 @@ interface FormData {
 
 interface ProcessingFile {
     id: string;
-    name: string;
+    file: File;
     progress: number;
     type: 'image' | 'video';
+    name: string;
 }
 
 interface MediaItem {
@@ -60,14 +46,13 @@ interface MediaItem {
     poster?: string;
 }
 
-// Função para gerar assinatura AWS v4
-function getSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string) {
-    const kDate = CryptoJS.HmacSHA256(dateStamp, "AWS4" + key);
-    const kRegion = CryptoJS.HmacSHA256(regionName, kDate);
-    const kService = CryptoJS.HmacSHA256(serviceName, kRegion);
-    const kSigning = CryptoJS.HmacSHA256("aws4_request", kService);
-    return kSigning;
-}
+const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 export default function DashboardPage() {
     const [formData, setFormData] = useState<FormData>({
@@ -88,23 +73,13 @@ export default function DashboardPage() {
         videosUrls: [],
     });
 
-    const [activeTab, setActiveTab] = useState('editor');
-    const [previewImagens, setPreviewImagens] = useState<string[]>([]);
-    const [previewVideos, setPreviewVideos] = useState<string[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [redesSociaisExpanded, setRedesSociaisExpanded] = useState(false);
-    const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-    const [processingList, setProcessingList] = useState<{ id: string; name: string; progress: number }[]>([]);
+    const [processingList, setProcessingList] = useState<ProcessingFile[]>([]);
     const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
-    const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+    const router = useRouter();
 
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
 
     useEffect(() => {
         // Carregar mídias do usuário
@@ -123,18 +98,13 @@ export default function DashboardPage() {
         fetchMedia();
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        console.log(formData);
-    };
 
     const processImage = async (file: File): Promise<File> => {
         const fileId = Math.random().toString(36).substring(7);
 
         try {
-            // Atualizar progresso para 20% - Iniciando processamento
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 20 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 20 } : f)
             );
 
             // Criar um elemento de imagem para processar
@@ -148,8 +118,8 @@ export default function DashboardPage() {
             });
 
             // Atualizar progresso para 40% - Imagem carregada
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 40 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 40 } : f)
             );
 
             // Criar canvas para adicionar marca d'água
@@ -167,8 +137,8 @@ export default function DashboardPage() {
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
             // Atualizar progresso para 60% - Imagem desenhada no canvas
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 60 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 60 } : f)
             );
 
             // Configurar marca d'água
@@ -189,8 +159,8 @@ export default function DashboardPage() {
             }
 
             // Atualizar progresso para 80% - Marca d'água adicionada
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 80 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 80 } : f)
             );
 
             // Converter canvas para blob
@@ -205,20 +175,19 @@ export default function DashboardPage() {
             });
 
             // Atualizar progresso para 100% - Processamento concluído
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 100 } : f)
             );
 
             // Limpar recursos
             URL.revokeObjectURL(imageUrl);
             await new Promise(resolve => setTimeout(resolve, 1000));
-            setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
+            setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== fileId));
 
             return processedFile;
         } catch (error) {
             console.error('Erro ao processar imagem:', error);
-            setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
-            return file;
+            throw error;
         }
     };
 
@@ -226,9 +195,8 @@ export default function DashboardPage() {
         const fileId = Math.random().toString(36).substring(7);
 
         try {
-            // Atualizar progresso para 20% - Iniciando processamento
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 20 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 20 } : f)
             );
 
             // Criar elementos de vídeo e canvas
@@ -246,8 +214,8 @@ export default function DashboardPage() {
             });
 
             // Atualizar progresso para 40% - Vídeo carregado
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 40 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 40 } : f)
             );
 
             // Configurar canvas com dimensões do vídeo
@@ -269,8 +237,8 @@ export default function DashboardPage() {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
 
             // Atualizar progresso para 60% - Configurações iniciais concluídas
-            setProcessingFiles(prev =>
-                prev.map(f => f.id === fileId ? { ...f, progress: 60 } : f)
+            setProcessingList((prev: ProcessingFile[]) =>
+                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 60 } : f)
             );
 
             // Iniciar gravação
@@ -303,8 +271,8 @@ export default function DashboardPage() {
                 frameCount++;
                 // Calcular progresso com base nos frames processados
                 const progress = Math.min(60 + (frameCount / totalFrames) * 40, 99);
-                setProcessingFiles(prev =>
-                    prev.map(f => f.id === fileId ? { ...f, progress: Math.round(progress) } : f)
+                setProcessingList((prev: ProcessingFile[]) =>
+                    prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: Math.round(progress) } : f)
                 );
 
                 requestAnimationFrame(processFrame);
@@ -322,21 +290,20 @@ export default function DashboardPage() {
                     });
 
                     // Atualizar progresso para 100% - Processamento concluído
-                    setProcessingFiles(prev =>
-                        prev.map(f => f.id === fileId ? { ...f, progress: 100 } : f)
+                    setProcessingList((prev: ProcessingFile[]) =>
+                        prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 100 } : f)
                     );
 
                     // Limpar recursos
                     URL.revokeObjectURL(video.src);
-                    setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
+                    setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== fileId));
 
                     resolve(processedFile);
                 };
             });
         } catch (error) {
             console.error('Erro ao processar vídeo:', error);
-            setProcessingFiles(prev => prev.filter(f => f.id !== fileId));
-            return file;
+            throw error;
         }
     };
 
@@ -423,96 +390,75 @@ export default function DashboardPage() {
     };
 
     const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        const maxFotos = Number(process.env.NEXT_PUBLIC_MAX_FOTOS) || 7;
-        const maxVideos = Number(process.env.NEXT_PUBLIC_MAX_VIDEOS) || 3;
-        const maxFotoSize = Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) || 10485760; // 10MB
-        const maxVideoSize = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) || 52428800; // 50MB
+        const files = e.target.files;
+        if (!files) return;
 
-        // Separar arquivos por tipo
-        const imagens = files.filter(file => file.type.startsWith('image/'));
-        const videos = files.filter(file => file.type.startsWith('video/'));
+        const newFiles = Array.from(files);
+        const totalPhotos = mediaItems.filter(item => item.type === 'image').length;
+        const totalVideos = mediaItems.filter(item => item.type === 'video').length;
 
-        // Validar limites de quantidade
-        if (imagens.length + mediaItems.filter(item => item.type === 'image').length > maxFotos) {
-            alert(`Limite de ${maxFotos} fotos atingido`);
-            return;
-        }
+        for (const file of newFiles) {
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
 
-        if (videos.length + mediaItems.filter(item => item.type === 'video').length > maxVideos) {
-            alert(`Limite de ${maxVideos} vídeos atingido`);
-            return;
-        }
-
-        // Validar tamanhos
-        const imagensValidas = imagens.filter(file => {
-            if (file.size > maxFotoSize) {
-                alert(`A imagem ${file.name} excede o limite de ${maxFotoSize / 1024 / 1024}MB`);
-                return false;
+            if (isImage && totalPhotos >= Number(process.env.NEXT_PUBLIC_MAX_FOTOS)) {
+                alert(`Limite de ${process.env.NEXT_PUBLIC_MAX_FOTOS} fotos atingido`);
+                continue;
             }
-            return true;
-        });
 
-        const videosValidos = videos.filter(file => {
-            if (file.size > maxVideoSize) {
-                alert(`O vídeo ${file.name} excede o limite de ${maxVideoSize / 1024 / 1024}MB`);
-                return false;
+            if (isVideo && totalVideos >= Number(process.env.NEXT_PUBLIC_MAX_VIDEOS)) {
+                alert(`Limite de ${process.env.NEXT_PUBLIC_MAX_VIDEOS} vídeos atingido`);
+                continue;
             }
-            return true;
-        });
 
-        // Adicionar arquivos à lista de processamento
-        const newProcessingFiles = [...imagensValidas, ...videosValidos].map(file => ({
-            id: Math.random().toString(36).substring(7),
-            name: file.name,
-            progress: 0
-        }));
+            if (isImage && file.size > Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE)) {
+                alert(`Foto muito grande. Máximo permitido: ${formatFileSize(Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE))}`);
+                continue;
+            }
 
-        setProcessingList(prev => [...prev, ...newProcessingFiles]);
+            if (isVideo && file.size > Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE)) {
+                alert(`Vídeo muito grande. Máximo permitido: ${formatFileSize(Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE))}`);
+                continue;
+            }
 
-        // Processar e fazer upload dos arquivos
-        for (const file of [...imagensValidas, ...videosValidos]) {
-            const fileId = newProcessingFiles.find(f => f.name === file.name)?.id;
-            if (!fileId) continue;
+            const id = Math.random().toString(36).substring(7);
+            const newProcessingFile: ProcessingFile = {
+                id,
+                file,
+                progress: 0,
+                type: isImage ? 'image' : 'video',
+                name: file.name
+            };
+
+            setProcessingList((prev: ProcessingFile[]) => [...prev, newProcessingFile]);
 
             try {
-                setProcessingList(prev => prev.map(item =>
-                    item.id === fileId ? { ...item, progress: 20 } : item
-                ));
+                let processedFile: File;
+                if (isImage) {
+                    processedFile = await processImage(file);
+                } else if (isVideo) {
+                    processedFile = await processVideo(file);
+                } else {
+                    throw new Error('Tipo de arquivo não suportado');
+                }
 
-                const processedFile = file.type.startsWith('image/')
-                    ? await processImage(file)
-                    : await processVideo(file);
+                // Fazer upload do arquivo processado
+                const url = await uploadToCloudflare(processedFile, isImage ? 'image' : 'video');
 
-                setProcessingList(prev => prev.map(item =>
-                    item.id === fileId ? { ...item, progress: 60 } : item
-                ));
-
-                const cdnUrl = file.type.startsWith('image/')
-                    ? await uploadToCloudflare(processedFile, 'image')
-                    : await uploadToBunnyCDN(processedFile);
-
-                setProcessingList(prev => prev.map(item =>
-                    item.id === fileId ? { ...item, progress: 100 } : item
-                ));
-
-                setMediaItems(prev => [...prev, {
-                    id: fileId,
-                    type: file.type.startsWith('image/') ? 'image' : 'video',
-                    url: cdnUrl,
+                // Adicionar à lista de mídias
+                setMediaItems((prev: MediaItem[]) => [...prev, {
+                    id: Math.random().toString(36).substring(7),
+                    type: isImage ? 'image' : 'video',
+                    url,
                     file: processedFile
                 }]);
 
-                // Remover da lista de processamento após 1 segundo
-                setTimeout(() => {
-                    setProcessingList(prev => prev.filter(item => item.id !== fileId));
-                }, 1000);
-
+                // Remover da lista de processamento
+                setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== id));
             } catch (error) {
                 console.error('Erro ao processar arquivo:', error);
-                setProcessingList(prev => prev.map(item =>
-                    item.id === fileId ? { ...item, progress: -1 } : item
-                ));
+                setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== id));
+                alert('Erro ao processar arquivo. Por favor, tente novamente.');
             }
         }
     };
@@ -520,59 +466,15 @@ export default function DashboardPage() {
     const handleDragEnd = (result: DropResult) => {
         if (!result.destination) return;
 
-        const { source, destination } = result;
+        const items = Array.from(mediaItems);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
 
-        if (source.droppableId === destination.droppableId && source.index === destination.index) {
-            return;
-        }
-
-        setMediaItems((items) => {
-            const newItems = arrayMove(items, source.index, destination.index);
-
-            // Atualizar formData com a nova ordem
-            const newImagens: File[] = [];
-            const newVideos: File[] = [];
-            const newImagensUrls: string[] = [];
-            const newVideosUrls: string[] = [];
-
-            newItems.forEach(item => {
-                if (item.type === 'image') {
-                    newImagens.push(item.file);
-                    newImagensUrls.push(item.url);
-                } else {
-                    newVideos.push(item.file);
-                    newVideosUrls.push(item.url);
-                }
-            });
-
-            setFormData(prev => ({
-                ...prev,
-                imagens: newImagens,
-                videos: newVideos,
-                imagensUrls: newImagensUrls,
-                videosUrls: newVideosUrls
-            }));
-
-            return newItems;
-        });
+        setMediaItems(items);
     };
 
     const removeMedia = (id: string) => {
-        const item = mediaItems.find(item => item.id === id);
-        if (!item) return;
-
-        // Revogar URL do objeto
-        URL.revokeObjectURL(item.url);
-
-        // Remover do estado
-        setMediaItems(prev => prev.filter(item => item.id !== id));
-
-        // Atualizar formData
-        setFormData(prev => ({
-            ...prev,
-            imagens: prev.imagens.filter(file => file !== item.file),
-            videos: prev.videos.filter(file => file !== item.file)
-        }));
+        setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
     };
 
     const onEmojiClick = (emojiObject: any) => {
@@ -616,7 +518,26 @@ export default function DashboardPage() {
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-6xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <button
+                        onClick={async () => {
+                            try {
+                                const response = await fetch('/api/auth/logout', {
+                                    method: 'POST',
+                                });
+                                if (response.ok) {
+                                    router.push('/login');
+                                }
+                            } catch (error) {
+                                console.error('Erro ao fazer logout:', error);
+                            }
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+                    >
+                        Sair
+                    </button>
+                </div>
 
                 {/* Formulário de cadastro */}
                 <div className="mb-8">
@@ -755,31 +676,12 @@ export default function DashboardPage() {
 
                                         {/* Espaços reservados para arquivos em processamento */}
                                         {processingList.map((item) => (
-                                            <div key={item.id} className="relative bg-gray-100 rounded-lg overflow-hidden">
-                                                <div className="aspect-square w-full flex items-center justify-center">
-                                                    {item.progress === -1 ? (
-                                                        <div className="text-center p-4">
-                                                            <p className="text-red-500 mb-2">Erro no processamento</p>
-                                                            <button
-                                                                onClick={() => setProcessingList(prev => prev.filter(i => i.id !== item.id))}
-                                                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                                                            >
-                                                                Remover
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center">
-                                                            <div className="w-16 h-16 mx-auto mb-2 relative">
-                                                                <div className="absolute inset-0 border-4 border-blue-500 rounded-full animate-spin border-t-transparent"></div>
-                                                                <div className="absolute inset-0 flex items-center justify-center text-blue-500 text-sm">
-                                                                    {item.progress}%
-                                                                </div>
-                                                            </div>
-                                                            <p className="text-sm text-gray-600 truncate max-w-full px-2">
-                                                                {item.name}
-                                                            </p>
-                                                        </div>
-                                                    )}
+                                            <div key={item.id} className="relative">
+                                                <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                    <div className="text-center">
+                                                        <p className="text-sm text-gray-600">{item.name}</p>
+                                                        <p className="text-xs text-gray-500">{Math.round(item.progress)}%</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}

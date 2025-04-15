@@ -26,6 +26,7 @@
     "browser-image-compression": "^2.0.2",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
+    "dotenv": "^16.5.0",
     "emoji-picker-react": "^4.7.12",
     "jose": "^5.2.2",
     "jsonwebtoken": "^9.0.2",

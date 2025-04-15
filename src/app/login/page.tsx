@@ -5,148 +5,93 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
     const router = useRouter();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
-        const formData = new FormData(e.currentTarget);
-        const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+            });
 
-        // Simular delay de processamento
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            const data = await response.json();
 
-        // Credenciais fixas para teste
-        if (email === 'admin@admin.com' && password === 'admin123') {
-            router.push('/dashboard');
-        } else {
-            setError('Email ou senha incorretos');
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro ao fazer login');
+            }
+
+            // Redirecionar baseado no papel do usuário
+            router.push(data.redirectTo);
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'Erro ao fazer login');
+        } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f3f4f6',
-            padding: '1rem'
-        }}>
-            <div style={{
-                backgroundColor: 'white',
-                padding: '2rem',
-                borderRadius: '0.5rem',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                width: '100%',
-                maxWidth: '400px'
-            }}>
-                <h1 style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 'bold',
-                    marginBottom: '1.5rem',
-                    textAlign: 'center',
-                    color: '#1f2937'
-                }}>
-                    Login
-                </h1>
-
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div>
-                        <label htmlFor="email" style={{
-                            display: 'block',
-                            marginBottom: '0.5rem',
-                            color: '#374151',
-                            fontSize: '0.875rem'
-                        }}>
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid #d1d5db',
-                                fontSize: '0.875rem'
-                            }}
-                            placeholder="admin@admin.com"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="password" style={{
-                            display: 'block',
-                            marginBottom: '0.5rem',
-                            color: '#374151',
-                            fontSize: '0.875rem'
-                        }}>
-                            Senha
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '0.375rem',
-                                border: '1px solid #d1d5db',
-                                fontSize: '0.875rem'
-                            }}
-                            placeholder="admin123"
-                        />
-                    </div>
-
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+            <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
+                <div>
+                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                        Login
+                    </h2>
+                </div>
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     {error && (
-                        <div style={{
-                            color: '#dc2626',
-                            fontSize: '0.875rem',
-                            textAlign: 'center'
-                        }}>
-                            {error}
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                            <span className="block sm:inline">{error}</span>
                         </div>
                     )}
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div>
+                            <label htmlFor="email" className="sr-only">Email</label>
+                            <input
+                                id="email"
+                                name="email"
+                                type="email"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="Email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="sr-only">Senha</label>
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                required
+                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                placeholder="Senha"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
+                    </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            backgroundColor: '#3b82f6',
-                            color: 'white',
-                            padding: '0.5rem',
-                            borderRadius: '0.375rem',
-                            fontSize: '0.875rem',
-                            fontWeight: '500',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            opacity: loading ? 0.7 : 1
-                        }}
-                    >
-                        {loading ? 'Entrando...' : 'Entrar'}
-                    </button>
+                    <div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            {loading ? 'Entrando...' : 'Entrar'}
+                        </button>
+                    </div>
                 </form>
-
-                <div style={{
-                    marginTop: '1rem',
-                    padding: '1rem',
-                    backgroundColor: '#f3f4f6',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    color: '#4b5563'
-                }}>
-                    <p style={{ marginBottom: '0.5rem' }}>Credenciais de teste:</p>
-                    <p>Email: admin@admin.com</p>
-                    <p>Senha: admin123</p>
-                </div>
             </div>
         </div>
     );
