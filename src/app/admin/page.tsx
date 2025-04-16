@@ -201,7 +201,7 @@ export default function AdminPage() {
                             {users.map((user) => (
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {user.name}
+                                        {user.nome}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {user.email}

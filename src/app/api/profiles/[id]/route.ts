@@ -1,34 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { ProfileRow } from '@/types/db';
 import { jwtVerify } from 'jose';
 
-export async function GET(
-    request: Request,
-    { params }: { params: { id: string } }
-) {
-    try {
-        const [rows] = await pool.execute<ProfileRow[]>(
-            'SELECT * FROM user_profiles WHERE user_id = ?',
-            [params.id]
-        );
-
-        if (rows.length === 0) {
-            return NextResponse.json(
-                { error: 'Perfil não encontrado' },
-                { status: 404 }
-            );
-        }
-
-        return NextResponse.json(rows[0]);
-    } catch (error) {
-        console.error('Erro ao buscar perfil:', error);
-        return NextResponse.json(
-            { error: 'Erro ao buscar perfil' },
-            { status: 500 }
-        );
-    }
-}
 
 export async function PUT(
     request: Request,

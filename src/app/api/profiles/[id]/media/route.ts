@@ -16,6 +16,7 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     try {
+        console.log(request)
         // Verificar se o perfil existe e está aprovado
         const [profileRows] = await pool.execute<RowDataPacket[]>(
             'SELECT id FROM profiles WHERE id = ? AND status = ?',
