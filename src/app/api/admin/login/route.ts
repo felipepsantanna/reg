@@ -2,13 +2,18 @@ import { NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
-import { findUserByEmail, initializeDB } from '@/lib/db';
+import pool from '@/lib/db';
+import { RowDataPacket } from 'mysql2';
+
+interface UserRow extends RowDataPacket {
+    id: number;
+    email: string;
+    password: string;
+    role: 'admin' | 'anunciante';
+}
 
 export async function POST(request: Request) {
     try {
-        // Inicializar o banco de dados com usuários de teste
-        await initializeDB();
-
         const { email, password } = await request.json();
 
         // Validar campos obrigatórios
@@ -19,20 +24,17 @@ export async function POST(request: Request) {
             );
         }
 
-        // Buscar usuário
-        const user = await findUserByEmail(email);
+        // Buscar usuário no banco de dados
+        const [rows] = await pool.execute<UserRow[]>(
+            'SELECT * FROM users WHERE email = ? AND role = ?',
+            [email, 'admin']
+        );
+
+        const user = rows[0];
         if (!user) {
             return NextResponse.json(
-                { error: 'Usuário não encontrado' },
+                { error: 'Usuário não encontrado ou não é administrador' },
                 { status: 404 }
-            );
-        }
-
-        // Verificar se é um usuário admin
-        if (user.role !== 'admin') {
-            return NextResponse.json(
-                { error: 'Acesso não autorizado' },
-                { status: 403 }
             );
         }
 
@@ -46,7 +48,6 @@ export async function POST(request: Request) {
         }
 
         // Criar token JWT
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key');
         const token = await new SignJWT({
             userId: user.id,
             role: user.role,
@@ -54,27 +55,20 @@ export async function POST(request: Request) {
         })
             .setProtectedHeader({ alg: 'HS256' })
             .setExpirationTime('24h')
-            .sign(secret);
+            .sign(new TextEncoder().encode(process.env.JWT_SECRET));
 
         // Configurar cookie
         cookies().set('admin_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: 60 * 60 * 24 // 24 horas
+            maxAge: 60 * 60 * 24, // 24 horas
+            path: '/',
         });
 
-        return NextResponse.json({
-            success: true,
-            user: {
-                id: user.id,
-                email: user.email,
-                nome: user.nome,
-                role: user.role
-            }
-        });
+        return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Erro no login:', error);
+        console.error('Erro no login do administrador:', error);
         return NextResponse.json(
             { error: 'Erro interno do servidor' },
             { status: 500 }

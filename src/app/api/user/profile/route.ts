@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function POST(request: Request) {
     try {
-        const token = cookies().get('admin-token');
+        const token = cookies().get('auth_token');
 
         if (!token) {
             return NextResponse.json(
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
 export async function GET(/*request: Request*/) {
     try {
-        const token = cookies().get('admin-token');
+        const token = cookies().get('auth_token');
 
         if (!token) {
             return NextResponse.json(

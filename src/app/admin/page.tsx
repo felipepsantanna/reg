@@ -32,7 +32,7 @@ export default function AdminPage() {
                         Sair
                     </button>
                 </div>
-                {/* Conteúdo do painel administrativo aqui */}
+
             </div>
         </div>
     );

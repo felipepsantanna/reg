@@ -1,13 +1,20 @@
 import mysql from 'mysql2/promise';
-import { AdminUser, AnuncianteUser, User } from '@/types/user';
+import { RowDataPacket } from 'mysql2';
 import bcrypt from 'bcryptjs';
-import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 interface UserRow extends RowDataPacket {
-    id: number;
+    id: string;
     email: string;
     password: string;
     role: 'admin' | 'anunciante';
+}
+
+interface AnuncianteUser extends UserRow {
+    status: string;
+    tipo: string;
+    telefone: string;
+    dataCadastro: Date;
+    ultimaAtualizacao: Date;
 }
 
 interface CountRow extends RowDataPacket {
@@ -28,7 +35,7 @@ const pool = mysql.createPool({
 export default pool;
 
 // Simulação de banco de dados
-export const users: User[] = [];
+export const users: UserRow[] = [];
 
 // Função para inicializar o banco de dados com usuários de teste
 export async function initializeDB() {
@@ -52,7 +59,7 @@ export async function initializeDB() {
 }
 
 // Função para buscar usuário por email
-export async function findUserByEmail(email: string): Promise<User | null> {
+export async function findUserByEmail(email: string): Promise<UserRow | null> {
     const [rows] = await pool.execute<UserRow[]>(
         'SELECT * FROM users WHERE email = ?',
         [email]
@@ -61,7 +68,7 @@ export async function findUserByEmail(email: string): Promise<User | null> {
 }
 
 // Função para buscar usuário por ID
-export function findUserById(id: string): User | undefined {
+export function findUserById(id: string): UserRow | undefined {
     return users.find(user => user.id === id);
 }
 

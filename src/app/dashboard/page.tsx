@@ -1,34 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { AiOutlineDrag } from 'react-icons/ai';
-import {
-    useSortable
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import React, { useState, useEffect } from 'react';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import UserProfileForm, { UserProfileData } from './UserProfileForm';
 import StrictModeDroppable from './StrictModeDroppable';
 import { useRouter } from 'next/navigation';
-
-interface FormData {
-    nome: string;
-    telefone: string;
-    sexo: string;
-    tamanhoDote?: string;
-    idade: string;
-    altura: string;
-    peso: string;
-    localAtendimento: string[];
-    atende: string[];
-    formaPagamento: string[];
-    redesSociais: { tipo: 'privacy' | 'twitter' | 'instagram' | 'onlyfans' | ''; url: string }[];
-    descricao: string;
-    imagens: File[];
-    videos: File[];
-    imagensUrls: string[]; // URLs dos arquivos no Bunny CDN
-    videosUrls: string[]; // URLs dos arquivos no Bunny CDN
-}
 
 interface ProcessingFile {
     id: string;
@@ -36,13 +12,14 @@ interface ProcessingFile {
     progress: number;
     type: 'image' | 'video';
     name: string;
+    status: 'uploading' | 'completed' | 'error';
 }
 
 interface MediaItem {
     id: string;
     type: 'image' | 'video';
     url: string;
-    file: File;
+    position: number;
     poster?: string;
 }
 
@@ -55,29 +32,9 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export default function DashboardPage() {
-    const [formData, setFormData] = useState<FormData>({
-        nome: '',
-        telefone: '',
-        sexo: '',
-        idade: '',
-        altura: '',
-        peso: '',
-        localAtendimento: [],
-        atende: [],
-        formaPagamento: [],
-        redesSociais: [],
-        descricao: '',
-        imagens: [],
-        videos: [],
-        imagensUrls: [],
-        videosUrls: [],
-    });
 
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [redesSociaisExpanded, setRedesSociaisExpanded] = useState(false);
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-    const [processingList, setProcessingList] = useState<ProcessingFile[]>([]);
-    const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
+    const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
     const router = useRouter();
 
 
@@ -97,215 +54,6 @@ export default function DashboardPage() {
 
         fetchMedia();
     }, []);
-
-
-    const processImage = async (file: File): Promise<File> => {
-        const fileId = Math.random().toString(36).substring(7);
-
-        try {
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 20 } : f)
-            );
-
-            // Criar um elemento de imagem para processar
-            const img = new Image();
-            const imageUrl = URL.createObjectURL(file);
-            img.src = imageUrl;
-
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-            });
-
-            // Atualizar progresso para 40% - Imagem carregada
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 40 } : f)
-            );
-
-            // Criar canvas para adicionar marca d'água
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Não foi possível obter o contexto do canvas');
-            }
-
-            // Configurar tamanho do canvas
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            // Desenhar imagem original
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            // Atualizar progresso para 60% - Imagem desenhada no canvas
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 60 } : f)
-            );
-
-            // Configurar marca d'água
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '20px Arial';
-            const watermarkText = 'Acompanhantes Top';
-            const textMetrics = ctx.measureText(watermarkText);
-
-            // Adicionar marca d'água em várias posições
-            for (let y = 50; y < canvas.height; y += 150) {
-                for (let x = 50; x < canvas.width; x += textMetrics.width + 100) {
-                    ctx.save();
-                    ctx.translate(x, y);
-                    ctx.rotate(-Math.PI / 6);
-                    ctx.fillText(watermarkText, 0, 0);
-                    ctx.restore();
-                }
-            }
-
-            // Atualizar progresso para 80% - Marca d'água adicionada
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 80 } : f)
-            );
-
-            // Converter canvas para blob
-            const blob = await new Promise<Blob>((resolve) => {
-                canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.9);
-            });
-
-            // Criar novo arquivo com marca d'água
-            const processedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-            });
-
-            // Atualizar progresso para 100% - Processamento concluído
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 100 } : f)
-            );
-
-            // Limpar recursos
-            URL.revokeObjectURL(imageUrl);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== fileId));
-
-            return processedFile;
-        } catch (error) {
-            console.error('Erro ao processar imagem:', error);
-            throw error;
-        }
-    };
-
-    const processVideo = async (file: File): Promise<File> => {
-        const fileId = Math.random().toString(36).substring(7);
-
-        try {
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 20 } : f)
-            );
-
-            // Criar elementos de vídeo e canvas
-            const video = document.createElement('video');
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Não foi possível obter o contexto do canvas');
-            }
-
-            // Configurar vídeo
-            video.src = URL.createObjectURL(file);
-            await new Promise((resolve) => {
-                video.onloadedmetadata = resolve;
-            });
-
-            // Atualizar progresso para 40% - Vídeo carregado
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 40 } : f)
-            );
-
-            // Configurar canvas com dimensões do vídeo
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // Configurar gravação
-            const stream = canvas.captureStream();
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'video/webm;codecs=vp9'
-            });
-
-            const chunks: Blob[] = [];
-            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-
-            // Configurar marca d'água
-            const watermarkText = 'Acompanhantes Top';
-            ctx.font = '20px Arial';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-
-            // Atualizar progresso para 60% - Configurações iniciais concluídas
-            setProcessingList((prev: ProcessingFile[]) =>
-                prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 60 } : f)
-            );
-
-            // Iniciar gravação
-            mediaRecorder.start(1000);
-            video.play();
-
-            let frameCount = 0;
-            const totalFrames = video.duration * 30; // Estimativa de 30 fps
-
-            const processFrame = () => {
-                if (video.ended || video.paused) {
-                    mediaRecorder.stop();
-                    return;
-                }
-
-                // Desenhar frame atual
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                // Adicionar marca d'água
-                for (let y = 50; y < canvas.height; y += 150) {
-                    for (let x = 50; x < canvas.width; x += 200) {
-                        ctx.save();
-                        ctx.translate(x, y);
-                        ctx.rotate(-Math.PI / 6);
-                        ctx.fillText(watermarkText, 0, 0);
-                        ctx.restore();
-                    }
-                }
-
-                frameCount++;
-                // Calcular progresso com base nos frames processados
-                const progress = Math.min(60 + (frameCount / totalFrames) * 40, 99);
-                setProcessingList((prev: ProcessingFile[]) =>
-                    prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: Math.round(progress) } : f)
-                );
-
-                requestAnimationFrame(processFrame);
-            };
-
-            video.requestVideoFrameCallback(processFrame);
-
-            // Aguardar processamento completo
-            return new Promise((resolve) => {
-                mediaRecorder.onstop = async () => {
-                    const blob = new Blob(chunks, { type: 'video/webm' });
-                    const processedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.webm'), {
-                        type: 'video/webm',
-                        lastModified: Date.now()
-                    });
-
-                    // Atualizar progresso para 100% - Processamento concluído
-                    setProcessingList((prev: ProcessingFile[]) =>
-                        prev.map((f: ProcessingFile) => f.id === fileId ? { ...f, progress: 100 } : f)
-                    );
-
-                    // Limpar recursos
-                    URL.revokeObjectURL(video.src);
-                    setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== fileId));
-
-                    resolve(processedFile);
-                };
-            });
-        } catch (error) {
-            console.error('Erro ao processar vídeo:', error);
-            throw error;
-        }
-    };
 
     const uploadToBunnyCDN = async (file: File): Promise<string> => {
         const libraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID;
@@ -393,72 +141,88 @@ export default function DashboardPage() {
         const files = e.target.files;
         if (!files) return;
 
-        const newFiles = Array.from(files);
-        const totalPhotos = mediaItems.filter(item => item.type === 'image').length;
-        const totalVideos = mediaItems.filter(item => item.type === 'video').length;
+        const newProcessingFiles: ProcessingFile[] = [];
 
-        for (const file of newFiles) {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
             const isImage = file.type.startsWith('image/');
             const isVideo = file.type.startsWith('video/');
 
-            if (isImage && totalPhotos >= Number(process.env.NEXT_PUBLIC_MAX_FOTOS)) {
-                alert(`Limite de ${process.env.NEXT_PUBLIC_MAX_FOTOS} fotos atingido`);
+            if (!isImage && !isVideo) {
+                alert('Tipo de arquivo não suportado. Apenas imagens e vídeos são permitidos.');
                 continue;
             }
 
-            if (isVideo && totalVideos >= Number(process.env.NEXT_PUBLIC_MAX_VIDEOS)) {
-                alert(`Limite de ${process.env.NEXT_PUBLIC_MAX_VIDEOS} vídeos atingido`);
+            const maxSize = isImage ? Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) : Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE);
+            if (file.size > maxSize) {
+                alert(`Arquivo muito grande. O tamanho máximo permitido é ${formatFileSize(maxSize)}`);
                 continue;
             }
 
-            if (isImage && file.size > Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE)) {
-                alert(`Foto muito grande. Máximo permitido: ${formatFileSize(Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE))}`);
+            const maxCount = isImage ? Number(process.env.NEXT_PUBLIC_MAX_FOTOS) : Number(process.env.NEXT_PUBLIC_MAX_VIDEOS);
+            const currentCount = mediaItems.filter(item => item.type === (isImage ? 'image' : 'video')).length;
+            if (currentCount >= maxCount) {
+                alert(`Limite de ${maxCount} ${isImage ? 'fotos' : 'vídeos'} atingido`);
                 continue;
             }
 
-            if (isVideo && file.size > Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE)) {
-                alert(`Vídeo muito grande. Máximo permitido: ${formatFileSize(Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE))}`);
-                continue;
-            }
-
-            const id = Math.random().toString(36).substring(7);
             const newProcessingFile: ProcessingFile = {
-                id,
+                id: `${Date.now()}-${i}`,
                 file,
                 progress: 0,
                 type: isImage ? 'image' : 'video',
-                name: file.name
+                name: file.name,
+                status: 'uploading'
             };
-
-            setProcessingList((prev: ProcessingFile[]) => [...prev, newProcessingFile]);
+            newProcessingFiles.push(newProcessingFile);
+            setProcessingFiles(prev => [...prev, newProcessingFile]);
 
             try {
-                let processedFile: File;
-                if (isImage) {
-                    processedFile = await processImage(file);
-                } else if (isVideo) {
-                    processedFile = await processVideo(file);
+                let url;
+                if (isVideo) {
+                    url = await uploadToBunnyCDN(file);
                 } else {
-                    throw new Error('Tipo de arquivo não suportado');
+                    url = await uploadToCloudflare(file, 'image');
                 }
 
-                // Fazer upload do arquivo processado
-                const url = await uploadToCloudflare(processedFile, isImage ? 'image' : 'video');
+                // Salvar mídia no banco de dados
+                const response = await fetch('/api/user/media', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: isImage ? 'image' : 'video',
+                        url,
+                        position: mediaItems.length
+                    })
+                });
 
-                // Adicionar à lista de mídias
-                setMediaItems((prev: MediaItem[]) => [...prev, {
-                    id: Math.random().toString(36).substring(7),
+                if (!response.ok) {
+                    throw new Error('Erro ao salvar mídia no banco de dados');
+                }
+
+                const { data } = await response.json();
+
+                setMediaItems(prev => [...prev, {
+                    id: data.id,
                     type: isImage ? 'image' : 'video',
                     url,
-                    file: processedFile
+                    position: mediaItems.length
                 }]);
 
-                // Remover da lista de processamento
-                setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== id));
+                setProcessingFiles(prev => prev.map(pf =>
+                    pf.id === newProcessingFile.id
+                        ? { ...pf, progress: 100, status: 'completed' }
+                        : pf
+                ));
             } catch (error) {
                 console.error('Erro ao processar arquivo:', error);
-                setProcessingList((prev: ProcessingFile[]) => prev.filter(f => f.id !== id));
-                alert('Erro ao processar arquivo. Por favor, tente novamente.');
+                setProcessingFiles(prev => prev.map(pf =>
+                    pf.id === newProcessingFile.id
+                        ? { ...pf, status: 'error' }
+                        : pf
+                ));
             }
         }
     };
@@ -477,42 +241,9 @@ export default function DashboardPage() {
         setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
     };
 
-    const onEmojiClick = (emojiObject: any) => {
-        const textarea = document.getElementById('descricao') as HTMLTextAreaElement;
-        const cursor = textarea?.selectionStart || 0;
-        const text = formData.descricao;
-        const newText = text.slice(0, cursor) + emojiObject.emoji + text.slice(cursor);
-        setFormData({ ...formData, descricao: newText });
-        setShowEmojiPicker(false);
-    };
-
-    const handleRedeSocialChange = (index: number, field: 'tipo' | 'url', value: string) => {
-        const newRedesSociais = [...formData.redesSociais];
-        newRedesSociais[index] = { ...newRedesSociais[index], [field]: value };
-        setFormData({ ...formData, redesSociais: newRedesSociais });
-    };
-
-    const addRedeSocial = () => {
-        setFormData(prev => ({
-            ...prev,
-            redesSociais: [...prev.redesSociais, { tipo: '', url: '' }]
-        }));
-        setRedesSociaisExpanded(true);
-    };
-
-    const removeRedeSocial = (index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            redesSociais: prev.redesSociais.filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleUploadClick = () => {
-        document.getElementById('file-upload')?.click();
-    };
 
     const handleProfileSave = (profileData: UserProfileData) => {
-        setUserProfile(profileData);
+        console.log(profileData)
     };
 
     return (
@@ -570,11 +301,11 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Lista de processamento */}
-                    {processingList.length > 0 && (
+                    {processingFiles.length > 0 && (
                         <div className="mb-6">
                             <h3 className="text-lg font-medium mb-2">Processando arquivos...</h3>
                             <div className="space-y-2">
-                                {processingList.map(item => (
+                                {processingFiles.map(item => (
                                     <div key={item.id} className="flex items-center">
                                         <div className="w-full bg-gray-200 rounded-full h-2.5">
                                             <div
@@ -675,7 +406,7 @@ export default function DashboardPage() {
                                         ))}
 
                                         {/* Espaços reservados para arquivos em processamento */}
-                                        {processingList.map((item) => (
+                                        {processingFiles.map((item) => (
                                             <div key={item.id} className="relative">
                                                 <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
                                                     <div className="text-center">
@@ -697,93 +428,3 @@ export default function DashboardPage() {
         </div>
     );
 }
-
-// Componente para item arrastável
-function SortableMediaItem({
-    item,
-    index,
-    onRemove
-}: {
-    item: MediaItem;
-    index: number;
-    onRemove: (id: string) => void;
-}) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({ id: item.id });
-    let retryCount = 0;
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
-    console.log(item)
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            className="relative group bg-surface-100 rounded-lg overflow-hidden"
-        >
-            <div className="absolute top-2 left-2 z-20 bg-black/70 text-white px-2 py-1 rounded text-sm">
-                {index + 1}
-            </div>
-
-            {/* Container principal da mídia */}
-            <div className="relative w-full h-48">
-
-                {item.type === 'image' ? (
-                    <img
-                        src={item.url}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                            console.error('Erro ao carregar imagem:', e);
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Erro+ao+carregar+imagem';
-                        }}
-                    />
-                ) : (
-                    <div className="w-full h-full">
-                        <video
-                            src={item.url}
-                            className="w-full h-full object-cover"
-                            preload="metadata"
-                            poster={item.poster}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                            <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Barra inferior com informações e controles */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div {...attributes} {...listeners} className="cursor-move">
-                        <AiOutlineDrag className="text-white text-lg" />
-                    </div>
-                    <span className="text-sm">
-                        {item.type === 'image' ? 'Imagem' : 'Vídeo'}
-                    </span>
-                </div>
-                <button
-                    onClick={() => onRemove(item.id)}
-                    className="text-white hover:text-red-500 text-lg"
-                >
-                    ×
-                </button>
-            </div>
-        </div>
-    );
-} 

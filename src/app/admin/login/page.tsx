@@ -25,9 +25,9 @@ export default function AdminLoginPage() {
             const data = await response.json();
 
             if (response.ok) {
-                router.push('/admin/dashboard');
+                router.push('/admin');
             } else {
-                setError(data.message || 'Erro ao fazer login');
+                setError(data.error || 'Erro ao fazer login');
             }
         } catch (err) {
             setError('Erro ao conectar ao servidor');

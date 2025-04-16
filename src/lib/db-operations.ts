@@ -1,6 +1,7 @@
 import pool from './db';
 import { hash, compare } from 'bcryptjs';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import bcrypt from 'bcryptjs';
 
 // Funções para usuários
 export async function createUser(email: string, password: string) {
@@ -186,4 +187,47 @@ export async function getLayoutConfig(userId: number) {
         [userId]
     ) as [RowDataPacket[], any];
     return rows[0];
+}
+
+interface UserRow extends RowDataPacket {
+    id: number;
+    email: string;
+    password: string;
+    role: 'admin' | 'anunciante';
+}
+
+export async function getUser(email: string, password: string) {
+    // Validar campos obrigatórios
+    if (!email || !password) {
+        return null;
+    }
+
+    try {
+        // Buscar usuário no banco de dados
+        const [rows] = await pool.execute<UserRow[]>(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
+
+        const user = rows[0];
+        if (!user) {
+            return null;
+        }
+
+        // Verificar senha
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+            return null;
+        }
+
+        // Retornar dados do usuário sem a senha
+        return {
+            id: user.id,
+            email: user.email,
+            role: user.role
+        };
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        return null;
+    }
 } 
