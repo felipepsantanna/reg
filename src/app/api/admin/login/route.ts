@@ -3,10 +3,9 @@ import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
 import { getUser } from '@/lib/db-operations';
 
-
 export async function POST(request: Request) {
     try {
-        const { email, password } = await request.json()
+        const { email, password } = await request.json();
 
         // Validar credenciais
         const user = await getUser(email, password);
@@ -17,13 +16,11 @@ export async function POST(request: Request) {
             }, { status: 401 });
         }
 
-
         if (user.role !== 'admin') {
-            console.log('Usuário não encontrado');
-            return NextResponse.json(
-                { error: 'Usuário não encontrado' },
-                { status: 404 }
-            );
+            return NextResponse.json({
+                success: false,
+                error: 'Acesso não autorizado'
+            }, { status: 403 });
         }
 
         // Criar token JWT
@@ -42,10 +39,7 @@ export async function POST(request: Request) {
             maxAge: 60 * 60 * 24 // 24 horas
         });
 
-        return NextResponse.json({
-            success: true,
-            redirectTo: user.role === 'admin' ? '/admin' : '/dashboard'
-        });
+        return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Erro no login do administrador:', error);
         return NextResponse.json(

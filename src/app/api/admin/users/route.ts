@@ -1,69 +1,53 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import pool from '@/lib/db';
-import { RowDataPacket } from 'mysql2';
+import { UserRow } from '@/types/db';
 import { cookies } from 'next/headers';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
-interface UserRow extends RowDataPacket {
-    id: number;
-    name: string;
-    email: string;
-    role: string;
-    created_at: string;
-    updated_at: string;
-    media_count: number;
-}
-
 export async function GET() {
+
     try {
-
         const token = cookies().get('admin_token');
-        console.log(token);
+
         if (!token) {
-            return NextResponse.json(
-                { error: 'Token administrativo não fornecido' },
-                { status: 401 }
-            );
+            return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
 
-        try {
-            const { payload } = await jwtVerify(token.value, new TextEncoder().encode(JWT_SECRET));
-            console.log(payload);
-            if (payload.role !== 'admin') {
-                return NextResponse.json(
-                    { error: 'Acesso não autorizado' },
-                    { status: 403 }
-                );
-            }
+        const { payload } = await jwtVerify(token.value, new TextEncoder().encode(JWT_SECRET));
 
-            // Buscar usuários no banco de dados ordenados por updated_at desc
-            const [users] = await pool.execute<UserRow[]>(`
-                SELECT 
-                    u.id,
-                    u.name,
-                    u.email,
-                    u.role,
-                    u.created_at,
-                    u.updated_at,
-                    COUNT(m.id) as media_count
-                FROM users u
-                LEFT JOIN media m ON u.id = m.user_id
-                GROUP BY u.id
-                ORDER BY u.updated_at DESC
-            `);
-
-            return NextResponse.json({ users });
-        } catch (error) {
-            return NextResponse.json(
-                { error: 'Token administrativo inválido' },
-                { status: 401 }
-            );
+        if (payload.role !== 'admin') {
+            return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
         }
+
+        const [users] = await pool.execute<UserRow[]>(`
+            SELECT 
+                u.id,
+                u.email,
+                u.role,
+                u.created_at,
+                u.updated_at,
+                p.nome,
+                p.telefone,
+                p.local_atendimento,
+                p.sexo,
+                p.descricao,
+                COUNT(DISTINCT m.id) as media_count,
+                SUM(CASE WHEN m.type = 'photo' THEN 1 ELSE 0 END) as photo_count,
+                SUM(CASE WHEN m.type = 'video' THEN 1 ELSE 0 END) as video_count
+            FROM users u
+            LEFT JOIN user_profiles p ON u.id = p.user_id
+            LEFT JOIN media m ON u.id = m.user_id
+            where u.role = 'anunciante'
+            GROUP BY u.id, p.id
+            ORDER BY u.updated_at DESC;
+        `);
+
+        return NextResponse.json(users);
     } catch (error) {
         console.error('Erro ao buscar usuários:', error);
         return NextResponse.json(
-            { error: 'Erro interno do servidor' },
+            { error: 'Erro ao buscar usuários' },
             { status: 500 }
         );
     }

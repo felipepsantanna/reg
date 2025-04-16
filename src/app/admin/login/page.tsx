@@ -12,16 +12,16 @@ export default function AdminLoginPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
+        setError(null);
         setLoading(true);
 
         try {
-            console.log('Iniciando tentativa de login...');
             const response = await fetch('/api/admin/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                credentials: 'include',
                 body: JSON.stringify({ email, password }),
             });
 
@@ -31,11 +31,14 @@ export default function AdminLoginPage() {
                 throw new Error(data.error || 'Erro ao fazer login');
             }
 
-            router.push(data.redirectTo);
+            // Aguardar um momento para garantir que o cookie seja definido
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Usar window.location.href para forçar um redirecionamento completo
+            window.location.href = '/admin';
         } catch (err) {
             console.error('Erro durante o login:', err);
             setError(err instanceof Error ? err.message : 'Erro ao fazer login');
-        } finally {
             setLoading(false);
         }
     };

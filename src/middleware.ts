@@ -7,67 +7,30 @@ export async function middleware(request: NextRequest) {
 
     // Verificar se é uma rota administrativa
     if (path.startsWith('/admin')) {
-        // Se for a página de login ou a rota de login da API, permitir acesso
+        // Permitir acesso à página de login e à rota de login da API
         if (path === '/admin/login' || path === '/api/admin/login') {
             return NextResponse.next();
         }
 
-        // Verificar token administrativo
-        const adminToken = request.cookies.get('admin_token')?.value;
+        // Verificar token para outras rotas administrativas
+        const token = request.cookies.get('admin_token')?.value;
 
-        if (!adminToken) {
+        if (!token) {
             return NextResponse.redirect(new URL('/admin/login', request.url));
         }
 
         try {
             const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-            const { payload } = await jwtVerify(adminToken, secret);
+            const { payload } = await jwtVerify(token, secret);
 
-            // Se não for admin, redirecionar para login
             if (payload.role !== 'admin') {
                 return NextResponse.redirect(new URL('/admin/login', request.url));
             }
 
             return NextResponse.next();
         } catch (error) {
-            // Se o token for inválido, redirecionar para login
+            console.error('Erro ao verificar token:', error);
             return NextResponse.redirect(new URL('/admin/login', request.url));
-        }
-    }
-
-    // Verificar se é uma rota da API administrativa
-    if (path.startsWith('/api/admin')) {
-        // Se for a rota de login, permitir acesso
-        if (path === '/api/admin/login') {
-            return NextResponse.next();
-        }
-
-        const adminToken = request.cookies.get('admin_token');
-        if (!adminToken) {
-            return NextResponse.json(
-                { error: 'Token administrativo não fornecido' },
-                { status: 401 }
-            );
-        }
-
-        try {
-            const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-            const { payload } = await jwtVerify(adminToken.value, secret);
-
-            if (payload.role !== 'admin') {
-                return NextResponse.json(
-                    { error: 'Acesso não autorizado' },
-                    { status: 403 }
-                );
-            }
-
-            return NextResponse.next();
-        } catch (error) {
-            console.log(error);
-            return NextResponse.json(
-                { error: 'Token administrativo inválido' },
-                { status: 401 }
-            );
         }
     }
 

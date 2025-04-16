@@ -2,28 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-
-interface Profile {
-    id: number;
-    user_id: number;
-    nome: string;
-    telefone: string;
-    sexo: string;
-    tamanhoDote?: string;
-    idade: number;
-    altura: number;
-    peso: number;
-    localAtendimento: string;
-    atende: string;
-    formaPagamento: string;
-    descricao: string;
-    status: 'pending' | 'approved' | 'rejected';
-    created_at: Date;
-    updated_at: Date;
-    email: string;
-}
 
 interface User {
     id: number;
@@ -42,10 +20,10 @@ export default function AdminDashboard() {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                console.log('Buscando 1...');
+
                 // Obter o token do cookie
                 const response = await fetch('/api/admin/users');
-                console.log(response);
+
                 if (response.status === 401) {
                     router.push('/admin/login');
                     return;
@@ -56,7 +34,8 @@ export default function AdminDashboard() {
                 }
 
                 const data = await response.json();
-                setUsers(data.users);
+                console.log(data)
+                setUsers(data);
             } catch (err) {
                 setError('Erro ao carregar usuários');
                 console.error(err);
@@ -66,7 +45,7 @@ export default function AdminDashboard() {
         };
 
         fetchUsers();
-    }, [router]);
+    }, []);
 
     const handleLogout = () => {
         document.cookie = 'admin_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
@@ -134,22 +113,23 @@ export default function AdminDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {users.map((user) => (
-                                    <tr key={user.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            {user.name}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {user.email}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {user.media_count}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {
+                                    users && users.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {user.nome}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {user.email}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {user.media_count}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                                            </td>
+                                        </tr>
+                                    ))}
                             </tbody>
                         </table>
                     </div>
