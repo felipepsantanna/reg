@@ -1,72 +1,51 @@
 import { NextResponse } from 'next/server';
-import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
-import bcrypt from 'bcryptjs';
-import pool from '@/lib/db';
-import { RowDataPacket } from 'mysql2';
+import { SignJWT } from 'jose';
+import { getUser } from '@/lib/db-operations';
 
-interface UserRow extends RowDataPacket {
-    id: number;
-    email: string;
-    password: string;
-    role: 'admin' | 'anunciante';
-}
 
 export async function POST(request: Request) {
     try {
-        const { email, password } = await request.json();
+        const { email, password } = await request.json()
 
-        // Validar campos obrigatórios
-        if (!email || !password) {
-            return NextResponse.json(
-                { error: 'Email e senha são obrigatórios' },
-                { status: 400 }
-            );
+        // Validar credenciais
+        const user = await getUser(email, password);
+        if (!user) {
+            return NextResponse.json({
+                success: false,
+                error: 'Credenciais inválidas'
+            }, { status: 401 });
         }
 
-        // Buscar usuário no banco de dados
-        const [rows] = await pool.execute<UserRow[]>(
-            'SELECT * FROM users WHERE email = ? AND role = ?',
-            [email, 'admin']
-        );
 
-        const user = rows[0];
-        if (!user) {
+        if (user.role !== 'admin') {
+            console.log('Usuário não encontrado');
             return NextResponse.json(
-                { error: 'Usuário não encontrado ou não é administrador' },
+                { error: 'Usuário não encontrado' },
                 { status: 404 }
             );
         }
 
-        // Verificar senha
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
-            return NextResponse.json(
-                { error: 'Senha incorreta' },
-                { status: 401 }
-            );
-        }
-
         // Criar token JWT
-        const token = await new SignJWT({
-            userId: user.id,
-            role: user.role,
-            email: user.email
-        })
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+        const token = await new SignJWT({ userId: user.id, role: user.role })
             .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
             .setExpirationTime('24h')
-            .sign(new TextEncoder().encode(process.env.JWT_SECRET));
+            .sign(secret);
 
-        // Configurar cookie
+        // Definir cookie
         cookies().set('admin_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: 60 * 60 * 24, // 24 horas
-            path: '/',
+            maxAge: 60 * 60 * 24 // 24 horas
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({
+            success: true,
+            redirectTo: user.role === 'admin' ? '/admin' : '/dashboard'
+        });
     } catch (error) {
         console.error('Erro no login do administrador:', error);
         return NextResponse.json(
