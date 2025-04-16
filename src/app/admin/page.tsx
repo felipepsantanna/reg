@@ -5,13 +5,33 @@ import { useRouter } from 'next/navigation';
 
 interface User {
     id: number;
-    name: string;
+    nome: string;
     email: string;
-    media_count: number;
     created_at: string;
+    updated_at: string;
+    phone: string | null;
+    city: string | null;
+    state: string | null;
+    birth_date: string | null;
+    gender: string | null;
+    occupation: string | null;
+    relationship_status: string | null;
+    bio: string | null;
+    instagram: string | null;
+    facebook: string | null;
+    twitter: string | null;
+    tiktok: string | null;
+    youtube: string | null;
+    website: string | null;
+    avatar_url: string | null;
+    cover_url: string | null;
+    media_count: number;
+    photo_count: number;
+    video_count: number;
+    status: 'pending' | 'approved' | 'rejected';
 }
 
-export default function AdminDashboard() {
+export default function AdminPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -47,94 +67,189 @@ export default function AdminDashboard() {
         fetchUsers();
     }, []);
 
-    const handleLogout = () => {
-        document.cookie = 'admin_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        router.push('/admin/login');
+    const handleApprove = async (userId: number) => {
+        try {
+            const token = document.cookie.split('; ').find(row => row.startsWith('admin_token='))?.split('=')[1];
+            if (!token) {
+                router.push('/admin/login');
+                return;
+            }
+
+            const response = await fetch(`/api/profiles/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({ status: 'approved' })
+            });
+
+            if (!response.ok) {
+                throw new Error('Erro ao aprovar perfil');
+            }
+
+            // Atualizar a lista de usuários
+            setUsers(users.map(user =>
+                user.id === userId ? { ...user, status: 'approved' } : user
+            ));
+        } catch (err) {
+            console.error('Erro ao aprovar perfil:', err);
+            setError('Erro ao aprovar perfil');
+        }
+    };
+
+    const handleReject = async (userId: number) => {
+        try {
+            const token = document.cookie.split('; ').find(row => row.startsWith('admin_token='))?.split('=')[1];
+            if (!token) {
+                router.push('/admin/login');
+                return;
+            }
+
+            const response = await fetch(`/api/profiles/${userId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-token': token
+                },
+                body: JSON.stringify({ status: 'rejected' })
+            });
+
+            if (!response.ok) {
+                throw new Error('Erro ao reprovar perfil');
+            }
+
+            // Atualizar a lista de usuários
+            setUsers(users.map(user =>
+                user.id === userId ? { ...user, status: 'rejected' } : user
+            ));
+        } catch (err) {
+            console.error('Erro ao reprovar perfil:', err);
+            setError('Erro ao reprovar perfil');
+        }
+    };
+
+    const handleExportIframe = (userId: number) => {
+        const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe>`;
+        const blob = new Blob([iframeCode], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `iframe-${userId}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Carregando...</p>
+            <div className="min-h-screen bg-gray-100 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="animate-pulse">
+                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+                        <div className="space-y-4">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="h-12 bg-gray-200 rounded"></div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-gray-100 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                        <span className="block sm:inline">{error}</span>
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <nav className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between h-16">
-                        <div className="flex items-center">
-                            <h1 className="text-xl font-semibold text-gray-900">Painel Administrativo</h1>
-                        </div>
-                        <div className="flex items-center">
-                            <button
-                                onClick={handleLogout}
-                                className="ml-4 px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                                Sair
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-                {error && (
-                    <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <span className="block sm:inline">{error}</span>
-                    </div>
-                )}
+        <div className="min-h-screen bg-gray-100 p-8">
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-gray-900 mb-8">Painel Administrativo</h1>
 
                 <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                    <div className="px-4 py-5 sm:px-6">
-                        <h2 className="text-lg leading-6 font-medium text-gray-900">Usuários</h2>
-                    </div>
-                    <div className="border-t border-gray-200">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Nome
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Email
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Mídias
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Data de Cadastro
-                                    </th>
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Nome
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Email
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Mídias
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Ações
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {users.map((user) => (
+                                <tr key={user.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {user.name}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {user.email}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {user.media_count} (Fotos: {user.photo_count}, Vídeos: {user.video_count})
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                            user.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                            {user.status === 'approved' ? 'Aprovado' :
+                                                user.status === 'rejected' ? 'Reprovado' : 'Pendente'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <div className="flex space-x-2">
+                                            <button
+                                                onClick={() => handleExportIframe(user.id)}
+                                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                            >
+                                                Exportar Iframe
+                                            </button>
+                                            {user.status !== 'approved' && (
+                                                <button
+                                                    onClick={() => handleApprove(user.id)}
+                                                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                >
+                                                    Aprovar
+                                                </button>
+                                            )}
+                                            {user.status !== 'rejected' && (
+                                                <button
+                                                    onClick={() => handleReject(user.id)}
+                                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                >
+                                                    Reprovar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {
-                                    users && users.map((user) => (
-                                        <tr key={user.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                {user.nome}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {user.email}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {user.media_count}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                            </td>
-                                        </tr>
-                                    ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
-            </main>
+            </div>
         </div>
     );
 } 

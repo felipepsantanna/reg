@@ -26,4 +26,24 @@ export interface UserRow extends RowDataPacket {
     media_count: number;
     photo_count: number;
     video_count: number;
+}
+
+export interface ProfileRow extends RowDataPacket {
+    id: number;
+    user_id: number;
+    nome: string;
+    telefone: string;
+    sexo: string;
+    tamanhoDote?: string;
+    idade: number;
+    altura: number;
+    peso: number;
+    localAtendimento: string;
+    atende: string;
+    formaPagamento: string;
+    descricao: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: Date;
+    updated_at: Date;
+    email: string;
 } 
