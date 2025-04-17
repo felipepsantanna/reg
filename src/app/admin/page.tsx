@@ -56,7 +56,6 @@ export default function AdminPage() {
                 }
 
                 const data = await response.json();
-                console.log(data)
                 setUsers(data);
             } catch (err) {
                 setError('Erro ao carregar usuários');
@@ -131,19 +130,29 @@ export default function AdminPage() {
         }
     };
 
-    const handleExportIframe = (userId: number) => {
-        const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe>`;
-        const blob = new Blob([iframeCode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `iframe-${userId}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    const handleExportIframe = async (userId: number) => {
+
+        try {
+            const response = await fetch(`/api/admin/exportiframe`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: userId })
+            });
+
+            if (!response.ok) {
+                throw new Error('Erro ao exportar perfil');
+            }
+
+            const data = await response.json();
+            console.log(data);
+        } catch (err) {
+            setError('Erro ao exportar perfil');
+            console.error(err);
+        }
     };
-    console.log(users)
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-100 p-8">
@@ -180,11 +189,11 @@ export default function AdminPage() {
 
                 <div className="flex flex-row-reverse pb-4">
                     <div className="basis-128"> <button
-                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
-                            onClick={() => router.push('/admin/cadastrar')}>
-                            Novo Usuário
-                        </button>
-                        </div>
+                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
+                        onClick={() => router.push('/admin/cadastrar')}>
+                        Novo Usuário
+                    </button>
+                    </div>
                 </div>
 
 
@@ -228,8 +237,8 @@ export default function AdminPage() {
                                                 'bg-yellow-100 text-yellow-800'
                                             }`}>
                                             {user.status === 'approved' ? 'Aprovado' :
-                                                user.status === 'rejected' ? 'Reprovado' : 
-                                                    user.status === 'pending' ? 'Pendente' :' - '}
+                                                user.status === 'rejected' ? 'Reprovado' :
+                                                    user.status === 'pending' ? 'Pendente' : ' - '}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
