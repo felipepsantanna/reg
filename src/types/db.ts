@@ -5,6 +5,7 @@ export interface UserRow extends RowDataPacket {
     name: string;
     email: string;
     role: string;
+    user_status: string;
     created_at: string;
     updated_at: string;
     phone: string | null;
@@ -26,6 +27,7 @@ export interface UserRow extends RowDataPacket {
     media_count: number;
     photo_count: number;
     video_count: number;
+    status: 'pending' | 'approved' | 'rejected';
 }
 
 export interface ProfileRow extends RowDataPacket {

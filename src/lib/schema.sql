@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('admin', 'anunciante') NOT NULL,
+    status ENUM('ativo', 'inativo', 'primeiro acesso') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     forma_pagamento JSON NOT NULL,
     redes_sociais JSON NOT NULL,
     descricao TEXT,
+    status ENUM('pending', 'approved', 'rejected') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

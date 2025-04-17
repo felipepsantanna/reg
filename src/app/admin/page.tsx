@@ -7,6 +7,8 @@ interface User {
     id: number;
     nome: string;
     email: string;
+    role: string;
+    user_status: string;
     created_at: string;
     updated_at: string;
     phone: string | null;
@@ -141,7 +143,7 @@ export default function AdminPage() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
-
+    console.log(users)
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-100 p-8">
@@ -176,6 +178,16 @@ export default function AdminPage() {
             <div className="max-w-7xl mx-auto">
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">Painel Administrativo</h1>
 
+                <div className="flex flex-row-reverse pb-4">
+                    <div className="basis-128"> <button
+                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
+                            onClick={() => router.push('/admin/cadastrar')}>
+                            Novo Usuário
+                        </button>
+                        </div>
+                </div>
+
+
                 <div className="bg-white shadow overflow-hidden sm:rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -199,6 +211,7 @@ export default function AdminPage() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {users.map((user) => (
+
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {user.nome}
@@ -215,34 +228,37 @@ export default function AdminPage() {
                                                 'bg-yellow-100 text-yellow-800'
                                             }`}>
                                             {user.status === 'approved' ? 'Aprovado' :
-                                                user.status === 'rejected' ? 'Reprovado' : 'Pendente'}
+                                                user.status === 'rejected' ? 'Reprovado' : 
+                                                    user.status === 'pending' ? 'Pendente' :' - '}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <div className="flex space-x-2">
-                                            <button
-                                                onClick={() => handleExportIframe(user.id)}
-                                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                            >
-                                                Exportar Iframe
-                                            </button>
-                                            {user.status !== 'approved' && (
+                                        {user.user_status === 'ativo' && (
+                                            <div className="flex space-x-2">
                                                 <button
-                                                    onClick={() => handleApprove(user.id)}
-                                                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    onClick={() => handleExportIframe(user.id)}
+                                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                 >
-                                                    Aprovar
+                                                    Exportar Iframe
                                                 </button>
-                                            )}
-                                            {user.status !== 'rejected' && (
-                                                <button
-                                                    onClick={() => handleReject(user.id)}
-                                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                                >
-                                                    Reprovar
-                                                </button>
-                                            )}
-                                        </div>
+                                                {user.status !== 'approved' && (
+                                                    <button
+                                                        onClick={() => handleApprove(user.id)}
+                                                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    >
+                                                        Aprovar
+                                                    </button>
+                                                )}
+                                                {user.status !== 'rejected' && (
+                                                    <button
+                                                        onClick={() => handleReject(user.id)}
+                                                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    >
+                                                        Reprovar
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

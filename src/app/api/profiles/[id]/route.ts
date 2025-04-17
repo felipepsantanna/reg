@@ -8,7 +8,7 @@ export async function PUT(
     { params }: { params: { id: string } }
 ) {
     try {
-        const token = request.headers.get('x-admin-token');
+        const token = request.headers.get('admin-token');
         if (!token) {
             return NextResponse.json(
                 { error: 'Token não fornecido' },
