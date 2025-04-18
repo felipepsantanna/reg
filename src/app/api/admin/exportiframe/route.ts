@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
-import pool from '@/lib/db';
 import { cookies } from 'next/headers';
-import { createUser } from '@/lib/db-operations';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function POST(request: Request) {
-   
+
     try {
         const token = cookies().get('admin_token');
-   
+
         if (!token) {
             return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
@@ -21,15 +19,23 @@ export async function POST(request: Request) {
         }
 
         const { userId } = await request.json();
-
-        const response = await fetch(`/api/profiles/${userId}`, {
+        const response = await fetch(`${process.env.URL_BASE}/api/profiles/${userId}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
+        //const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe> `;
         console.log(response);
-        //const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe>`;
+
+
+        const resp = await fetch(`${process.env.URL_BASE}/profile/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        console.log(resp);
 
 
         /*
@@ -44,11 +50,11 @@ export async function POST(request: Request) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         */
-         
-              const iframeCode = '';
+
+        const iframeCode = '';
         return NextResponse.json({ success: true, data: iframeCode });
     }
-    catch(error){
+    catch (error) {
         console.error('Erro ao exportar o iframe:', error);
         return NextResponse.json(
             { error: 'Erro ao exportar o iframe' },

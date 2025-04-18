@@ -16,10 +16,10 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     try {
-        console.log(request)
+        request = request;
         // Verificar se o perfil existe e está aprovado
         const [profileRows] = await pool.execute<RowDataPacket[]>(
-            'SELECT id FROM profiles WHERE id = ? AND status = ?',
+            'SELECT id FROM user_profiles WHERE user_id = ? AND status = ?',
             [params.id, 'approved']
         );
 
@@ -32,11 +32,10 @@ export async function GET(
 
         // Buscar mídias do perfil
         const [mediaRows] = await pool.execute<MediaRow[]>(`
-            SELECT m.* 
-            FROM media m 
-            JOIN profiles p ON m.user_id = p.user_id 
-            WHERE p.id = ? 
-            ORDER BY m.position ASC
+            SELECT * 
+            FROM media
+            WHERE user_id = ? 
+            ORDER BY type, position ASC
         `, [params.id]);
 
         return NextResponse.json({ data: mediaRows });

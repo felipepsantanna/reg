@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS media (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     type ENUM('image', 'video') NOT NULL,
+    thumbnail VARCHAR(255) NOT NULL,
     url VARCHAR(255) NOT NULL,
     position INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

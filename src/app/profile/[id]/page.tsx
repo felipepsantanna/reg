@@ -28,6 +28,7 @@ interface MediaItem {
     id: string;
     type: 'image' | 'video';
     url: string;
+    thumbnail: string;
     position: number;
     poster?: string;
 }
@@ -49,7 +50,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             if (!response.ok) {
                 throw new Error('Erro ao buscar perfil');
             }
-            const { data } = await response.json();
+            const data = await response.json();
             setProfile(data);
         } catch (error) {
             setError('Erro ao carregar perfil');
@@ -64,6 +65,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                 throw new Error('Erro ao buscar mídias');
             }
             const { data } = await response.json();
+
             setMediaItems(data);
         } catch (error) {
             console.error('Erro ao carregar mídias:', error);
@@ -139,10 +141,6 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                                     <span className="font-medium">Telefone:</span>
                                     <span className="ml-2">{profile.telefone}</span>
                                 </div>
-                                <div>
-                                    <span className="font-medium">Email:</span>
-                                    <span className="ml-2">{profile.email}</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -176,9 +174,9 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     {mediaItems.length > 0 && (
                         <div className="p-6 border-t">
                             <h2 className="text-xl font-semibold mb-4">Galeria</h2>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="">
                                 {mediaItems.map(item => (
-                                    <div key={item.id} className="aspect-square">
+                                    <div key={item.id} className="w-full h-full">
                                         {item.type === 'image' ? (
                                             <img
                                                 src={item.url}
@@ -186,12 +184,16 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                                                 className="w-full h-full object-cover rounded-lg"
                                             />
                                         ) : (
-                                            <video
-                                                src={item.url}
-                                                poster={item.poster}
-                                                controls
-                                                className="w-full h-full object-cover rounded-lg"
-                                            />
+                                            <div><br />
+                                                <iframe
+                                                    src={`https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true`}
+
+                                                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                                    allowFullScreen={true}
+                                                    className="w-full h-full"
+                                                >
+                                                </iframe>
+                                            </div>
                                         )}
                                     </div>
                                 ))}
@@ -200,6 +202,6 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 } 

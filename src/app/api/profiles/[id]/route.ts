@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { jwtVerify } from 'jose';
-
+import { getUserProfile } from '@/lib/db-operations';
 
 export async function PUT(
     request: Request,
@@ -49,4 +49,31 @@ export async function PUT(
             { status: 500 }
         );
     }
-} 
+}
+
+export async function GET(
+    request: Request,
+    { params }: { params: { id: string } }
+) {
+
+    try {
+        const { id } = params;
+        request = request;
+        const row = await getUserProfile(parseInt(id));
+
+        if (row.length === 0) {
+            return NextResponse.json(
+                { error: 'Perfil não encontrado' },
+                { status: 404 }
+            );
+        }
+
+        return NextResponse.json(row);
+    } catch (error) {
+        console.error('Erro ao buscar perfil:', error);
+        return NextResponse.json(
+            { error: 'Erro ao buscar perfil' },
+            { status: 500 }
+        );
+    }
+}

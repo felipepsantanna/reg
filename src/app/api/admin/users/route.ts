@@ -7,8 +7,6 @@ import { createUser } from '@/lib/db-operations';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function GET() {
-    console.log('GET');
-
     try {
         const token = cookies().get('admin_token');
 
@@ -55,7 +53,7 @@ export async function GET() {
             { status: 500 }
         );
     }
-} 
+}
 
 export async function POST(request: Request) {
     try {
@@ -74,11 +72,11 @@ export async function POST(request: Request) {
         const { email, password } = await request.json();
 
         // Atualizar perfil existente
-         var result = await createUser(email, password);
-              
+        var result = await createUser(email, password);
+
         return NextResponse.json({ success: true, data: result });
     }
-    catch(error){
+    catch (error) {
         console.error('Erro ao cadastrar o usuário:', error);
         return NextResponse.json(
             { error: 'Erro ao cadastrar o usuário' },
