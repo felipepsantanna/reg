@@ -2,28 +2,23 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getUserProfile } from '@/lib/db-operations';
+import { cookies } from 'next/headers';
 
 export async function PUT(
     request: Request,
     { params }: { params: { id: string } }
 ) {
     try {
-        const token = request.headers.get('admin-token');
+        const token = cookies().get('admin_token');
+
         if (!token) {
-            return NextResponse.json(
-                { error: 'Token não fornecido' },
-                { status: 401 }
-            );
+            return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
 
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-        const { payload } = await jwtVerify(token, secret);
+        const { payload } = await jwtVerify(token.value, new TextEncoder().encode(process.env.JWT_SECRET));
 
         if (payload.role !== 'admin') {
-            return NextResponse.json(
-                { error: 'Acesso não autorizado' },
-                { status: 403 }
-            );
+            return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
         }
 
         const body = await request.json();

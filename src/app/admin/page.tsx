@@ -70,17 +70,10 @@ export default function AdminPage() {
 
     const handleApprove = async (userId: number) => {
         try {
-            const token = document.cookie.split('; ').find(row => row.startsWith('admin_token='))?.split('=')[1];
-            if (!token) {
-                router.push('/admin/login');
-                return;
-            }
-
             const response = await fetch(`/api/profiles/${userId}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-admin-token': token
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ status: 'approved' })
             });
@@ -101,21 +94,14 @@ export default function AdminPage() {
 
     const handleReject = async (userId: number) => {
         try {
-            const token = document.cookie.split('; ').find(row => row.startsWith('admin_token='))?.split('=')[1];
-            if (!token) {
-                router.push('/admin/login');
-                return;
-            }
-
             const response = await fetch(`/api/profiles/${userId}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-admin-token': token
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ status: 'rejected' })
             });
-
+            console.log(response);
             if (!response.ok) {
                 throw new Error('Erro ao reprovar perfil');
             }

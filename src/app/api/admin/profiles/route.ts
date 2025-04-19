@@ -25,7 +25,7 @@ interface ProfileRow extends RowDataPacket {
 export async function GET(request: Request) {
     try {
         // Verificar token de administrador
-        const token = request.headers.get('x-admin-token');
+        const token = request.headers.get('admin-token');
         if (!token) {
             return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
     try {
         // Verificar token de administrador
-        const token = request.headers.get('x-admin-token');
+        const token = request.headers.get('admin-token');
         if (!token) {
             return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
@@ -71,7 +71,7 @@ export async function PUT(request: Request) {
 
         // Atualizar status do perfil
         await pool.execute(
-            'UPDATE profiles SET status = ? WHERE id = ?',
+            'UPDATE user_profiles SET status = ? WHERE user_id = ?',
             [status, id]
         );
 

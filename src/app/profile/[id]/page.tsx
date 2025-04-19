@@ -101,7 +101,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     {/* Cabeçalho */}
                     <div className="p-6 border-b">
                         <h1 className="text-3xl font-bold text-gray-900">{profile.nome}</h1>
-                        <p className="text-gray-600 mt-2">Última atualização: {format(new Date(profile.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+                        <p className="text-gray-400 text-xs mt-1 italic">Última atualização: {format(new Date(profile.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
                     </div>
 
                     {/* Informações Básicas */}
@@ -149,48 +149,55 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     <div className="p-6 border-t">
                         <h2 className="text-xl font-semibold mb-4">Locais e Serviços</h2>
                         <div className="grid grid-cols-2 gap-6">
-                            <div>
-                                <h3 className="font-medium mb-2">Locais de Atendimento</h3>
-                                <p className="text-gray-600">{profile.localAtendimento}</p>
-                            </div>
-                            <div>
-                                <h3 className="font-medium mb-2">Atende</h3>
-                                <p className="text-gray-600">{profile.atende}</p>
-                            </div>
-                            <div>
-                                <h3 className="font-medium mb-2">Formas de Pagamento</h3>
-                                <p className="text-gray-600">{profile.formaPagamento}</p>
-                            </div>
+                            {profile.localAtendimento && (
+                                <div>
+                                    <h3 className="font-medium mb-2">Locais de Atendimento</h3>
+                                    <p className="text-gray-600">{profile.localAtendimento}</p>
+                                </div>
+                            )}
+                            {profile.atende && (
+                                <div>
+                                    <h3 className="font-medium mb-2">Atende</h3>
+                                    <p className="text-gray-600">{profile.atende.replace("[\"", '').replace("\"]", '')}</p>
+                                </div>
+                            )}
+                            {profile.formaPagamento && (
+                                <div>
+                                    <h3 className="font-medium mb-2">Formas de Pagamento</h3>
+                                    <p className="text-gray-600">{profile.formaPagamento}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Descrição */}
-                    <div className="p-6 border-t">
-                        <h2 className="text-xl font-semibold mb-4">Descrição</h2>
-                        <p className="text-gray-600 whitespace-pre-line">{profile.descricao}</p>
-                    </div>
+                    {profile.descricao && (
+                        <div className="p-6 border-t">
+                            <h2 className="text-xl font-semibold mb-4">Descrição</h2>
+                            <p className="text-gray-600 whitespace-pre-line">{profile.descricao}</p>
+                        </div>
+                    )}
 
                     {/* Galeria de Mídia */}
                     {mediaItems.length > 0 && (
                         <div className="p-6 border-t">
                             <h2 className="text-xl font-semibold mb-4">Galeria</h2>
-                            <div className="">
+                            <div className="grid grid-cols-1 gap-4">
                                 {mediaItems.map(item => (
-                                    <div key={item.id} className="w-full h-full">
+                                    <div key={item.id} className="w-full">
                                         {item.type === 'image' ? (
                                             <img
                                                 src={item.url}
                                                 alt=""
-                                                className="w-full h-full object-cover rounded-lg"
+                                                className="w-full h-[400px] object-cover rounded-lg"
                                             />
                                         ) : (
-                                            <div><br />
+                                            <div className="relative w-full pt-[56.25%]">
                                                 <iframe
                                                     src={`https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true`}
-
                                                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                                                     allowFullScreen={true}
-                                                    className="w-full h-full"
+                                                    className="absolute top-0 left-0 w-full h-full rounded-lg"
                                                 >
                                                 </iframe>
                                             </div>
