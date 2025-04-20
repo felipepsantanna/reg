@@ -19,23 +19,18 @@ export async function POST(request: Request) {
         }
 
         const { userId } = await request.json();
-        const response = await fetch(`${process.env.URL_BASE}/api/profiles/${userId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
+
+
         //const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe> `;
-        console.log(response);
 
 
-        const resp = await fetch(`${process.env.URL_BASE}/profile/${userId}`, {
+        const response = await fetch(`${process.env.URL_BASE}/profile/${userId}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        console.log(resp);
+        console.log(await response.text());
 
 
         /*

@@ -35,7 +35,7 @@ export async function GET() {
                 p.descricao,
                 p.status,
                 COUNT(DISTINCT m.id) as media_count,
-                SUM(CASE WHEN m.type = 'photo' THEN 1 ELSE 0 END) as photo_count,
+                SUM(CASE WHEN m.type = 'image' THEN 1 ELSE 0 END) as photo_count,
                 SUM(CASE WHEN m.type = 'video' THEN 1 ELSE 0 END) as video_count
             FROM users u
             LEFT JOIN user_profiles p ON u.id = p.user_id

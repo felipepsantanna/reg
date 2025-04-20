@@ -16,6 +16,13 @@ export async function POST(request: Request) {
             }, { status: 401 });
         }
 
+        if (user.role === 'admin') {
+            return NextResponse.json({
+                success: false,
+                error: 'Credenciais inválidas'
+            }, { status: 401 });
+        }
+
         // Criar token JWT
         const secret = new TextEncoder().encode(process.env.JWT_SECRET);
         const token = await new SignJWT({ userId: user.id, role: user.role })
@@ -34,7 +41,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             success: true,
-            redirectTo: user.role === 'admin' ? '/admin' : '/dashboard'
+            redirectTo: '/dashboard'
         });
     } catch (error) {
         console.error('Erro no login:', error);

@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface User {
     id: number;
     nome: string;
     email: string;
+    telefone: string;
     role: string;
     user_status: string;
     created_at: string;
@@ -191,13 +194,16 @@ export default function AdminPage() {
                                     Nome
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
+                                    Contato
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Mídias
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Status
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Última atualização
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Ações
@@ -211,8 +217,9 @@ export default function AdminPage() {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {user.nome}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {user.email}
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm text-gray-900">{user.email}</div>
+                                        <div className="text-sm text-gray-500">{user.telefone}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {user.media_count} (Fotos: {user.photo_count}, Vídeos: {user.video_count})
@@ -226,6 +233,9 @@ export default function AdminPage() {
                                                 user.status === 'rejected' ? 'Reprovado' :
                                                     user.status === 'pending' ? 'Pendente' : ' - '}
                                         </span>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {format(new Date(user.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {user.user_status === 'ativo' && (
