@@ -134,7 +134,7 @@ export default function AdminPage() {
             }
 
             const data = await response.json();
-
+            console.log(data);
         } catch (err) {
             setError('Erro ao exportar perfil');
             console.error(err);

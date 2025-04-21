@@ -41,7 +41,6 @@ export default function DashboardPage() {
 
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
-    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
 
@@ -204,7 +203,7 @@ export default function DashboardPage() {
             }
         } catch (error) {
             console.error('Erro ao salvar nova ordem:', error);
-            setError('Erro ao atualizar posições das mídias');
+
         }
     };
 
