@@ -19,9 +19,15 @@ interface MediaItem {
     id: string;
     type: 'image' | 'video';
     url: string;
+    thumbnail: string;
     position: number;
-    poster?: string;
 }
+
+export interface MediaUploadResponse {
+    thumbnail: string;
+    url: string;
+}
+
 
 const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -35,6 +41,7 @@ export default function DashboardPage() {
 
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
 
@@ -43,6 +50,7 @@ export default function DashboardPage() {
         const fetchMedia = async () => {
             try {
                 const response = await fetch('/api/user/media');
+
                 if (response.ok) {
                     const data = await response.json();
                     setMediaItems(data.media || []);
@@ -55,87 +63,7 @@ export default function DashboardPage() {
         fetchMedia();
     }, []);
 
-    const uploadToBunnyCDN = async (file: File): Promise<string> => {
-        const libraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID;
-        const accessKey = process.env.NEXT_PUBLIC_BUNNY_ACCESS_KEY;
 
-        if (!libraryId || !accessKey) {
-            throw new Error('Configurações do Bunny CDN não encontradas');
-        }
-
-        try {
-            // Primeiro, criar o vídeo na biblioteca
-            const createEndpoint = `https://video.bunnycdn.com/library/${libraryId}/videos`;
-            const createResponse = await fetch(createEndpoint, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'AccessKey': accessKey,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    title: file.name,
-                    collectionId: null,
-                    length: 0,
-                    status: 'uploading'
-                })
-            });
-
-            if (!createResponse.ok) {
-                throw new Error(`Erro ao criar vídeo: ${createResponse.statusText}`);
-            }
-
-            const createData = await createResponse.json();
-            const videoId = createData.guid;
-
-            // Agora, fazer o upload do arquivo
-            const uploadEndpoint = `https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`;
-            const uploadResponse = await fetch(uploadEndpoint, {
-                method: 'PUT',
-                headers: {
-                    'Accept': 'application/json',
-                    'AccessKey': accessKey,
-                    'Content-Type': file.type,
-                },
-                body: file
-            });
-
-            if (!uploadResponse.ok) {
-                throw new Error(`Erro ao fazer upload do vídeo: ${uploadResponse.statusText}`);
-            }
-
-            // URL da thumbnail
-            const thumbnailUrl = `https://vz-ddb4a7c6-db0.b-cdn.net/${videoId}/thumbnail.jpg`;
-            return thumbnailUrl; // Retornar a URL da thumbnail
-        } catch (error) {
-            console.error('Erro ao fazer upload para Bunny CDN:', error);
-            throw error;
-        }
-    };
-
-    const uploadToCloudflare = async (file: File, fileType: 'image' | 'video'): Promise<string> => {
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('fileType', fileType);
-
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Erro ao fazer upload');
-            }
-
-            const data = await response.json();
-            return data.url;
-        } catch (error) {
-            console.error('Erro ao fazer upload para Cloudflare:', error);
-            throw error;
-        }
-    };
 
     const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -178,12 +106,20 @@ export default function DashboardPage() {
             setProcessingFiles(prev => [...prev, newProcessingFile]);
 
             try {
-                let url;
-                if (isVideo) {
-                    url = await uploadToBunnyCDN(file);
-                } else {
-                    url = await uploadToCloudflare(file, 'image');
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('fileType', file.type);
+
+                const uploadResponse = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Erro ao salvar mídia no banco de dados');
                 }
+                const objectMediaUpload = await uploadResponse.json() as MediaUploadResponse;
 
                 // Salvar mídia no banco de dados
                 const response = await fetch('/api/user/media', {
@@ -193,7 +129,8 @@ export default function DashboardPage() {
                     },
                     body: JSON.stringify({
                         type: isImage ? 'image' : 'video',
-                        url,
+                        url: objectMediaUpload.url,
+                        thumbnail: objectMediaUpload.thumbnail,
                         position: mediaItems.length
                     })
                 });
@@ -204,18 +141,24 @@ export default function DashboardPage() {
 
                 const { data } = await response.json();
 
-                setMediaItems(prev => [...prev, {
-                    id: data.id,
-                    type: isImage ? 'image' : 'video',
-                    url,
-                    position: mediaItems.length
-                }]);
-
                 setProcessingFiles(prev => prev.map(pf =>
                     pf.id === newProcessingFile.id
                         ? { ...pf, progress: 100, status: 'completed' }
                         : pf
                 ));
+
+                setMediaItems(prev => [...prev, {
+                    id: data.id,
+                    type: isImage ? 'image' : 'video',
+                    url: data.url,
+                    thumbnail: data.thumbnail,
+                    position: mediaItems.length + 1
+                }]);
+
+
+
+                setProcessingFiles((prev: ProcessingFile[]) => prev.filter(item => item.id !== newProcessingFile.id));
+
             } catch (error) {
                 console.error('Erro ao processar arquivo:', error);
                 setProcessingFiles(prev => prev.map(pf =>
@@ -227,20 +170,47 @@ export default function DashboardPage() {
         }
     };
 
-    const handleDragEnd = (result: DropResult) => {
+    const handleDragEnd = async (result: DropResult) => {
         if (!result.destination) return;
 
         const items = Array.from(mediaItems);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
 
-        setMediaItems(items);
+        // Atualizar posições localmente primeiro
+        const updatedItems = items.map((item, index) => ({
+            ...item,
+            position: index
+        }));
+
+        setMediaItems(updatedItems);
+
+        try {
+            const response = await fetch('/api/user/media', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    mediaPositions: updatedItems.map((item, index) => ({
+                        id: item.id,
+                        position: index
+                    }))
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Erro ao atualizar posições');
+            }
+        } catch (error) {
+            console.error('Erro ao salvar nova ordem:', error);
+            setError('Erro ao atualizar posições das mídias');
+        }
     };
 
     const removeMedia = (id: string) => {
         setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
     };
-
 
     const handleProfileSave = (profileData: UserProfileData) => {
         console.log(profileData)
@@ -336,20 +306,24 @@ export default function DashboardPage() {
 
                         <DragDropContext onDragEnd={handleDragEnd}>
                             <StrictModeDroppable droppableId="media-gallery">
-                                {(provided: any) => (
+                                {(provided) => (
                                     <div
                                         {...provided.droppableProps}
                                         ref={provided.innerRef}
-                                        className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2"
+                                        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
                                     >
                                         {mediaItems.map((item, index) => (
-                                            <Draggable key={item.id} draggableId={item.id} index={index}>
-                                                {(provided: any) => (
+                                            <Draggable
+                                                key={item.id.toString()}
+                                                draggableId={item.id.toString()}
+                                                index={index}
+                                            >
+                                                {(provided, snapshot) => (
                                                     <div
                                                         ref={provided.innerRef}
                                                         {...provided.draggableProps}
                                                         {...provided.dragHandleProps}
-                                                        className="relative bg-gray-100 rounded-lg overflow-hidden group"
+                                                        className={`relative aspect-square ${snapshot.isDragging ? 'z-50' : ''}`}
                                                     >
                                                         <div className="aspect-square w-full">
                                                             {item.type === 'image' ? (
@@ -365,13 +339,10 @@ export default function DashboardPage() {
                                                             ) : (
                                                                 <div className="relative w-full h-full">
                                                                     <video
-                                                                        src={item.url}
-                                                                        poster={item.poster}
+                                                                        src={`https://vz-ddb4a7c6-db0.b-cdn.net/${item.url}/preview.webp`}
+                                                                        poster={item.thumbnail}
                                                                         className="w-full h-full object-cover"
-                                                                        onError={(e) => {
-                                                                            console.error('Erro ao carregar vídeo:', e);
-                                                                            (e.target as HTMLVideoElement).poster = 'https://via.placeholder.com/150x150?text=Erro+ao+carregar';
-                                                                        }}
+
                                                                     />
                                                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                         <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
@@ -404,19 +375,6 @@ export default function DashboardPage() {
                                                 )}
                                             </Draggable>
                                         ))}
-
-                                        {/* Espaços reservados para arquivos em processamento */}
-                                        {processingFiles.map((item) => (
-                                            <div key={item.id} className="relative">
-                                                <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center">
-                                                    <div className="text-center">
-                                                        <p className="text-sm text-gray-600">{item.name}</p>
-                                                        <p className="text-xs text-gray-500">{Math.round(item.progress)}%</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-
                                         {provided.placeholder}
                                     </div>
                                 )}

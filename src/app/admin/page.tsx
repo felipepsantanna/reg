@@ -104,7 +104,6 @@ export default function AdminPage() {
                 },
                 body: JSON.stringify({ status: 'rejected' })
             });
-            console.log(response);
             if (!response.ok) {
                 throw new Error('Erro ao reprovar perfil');
             }
@@ -135,7 +134,7 @@ export default function AdminPage() {
             }
 
             const data = await response.json();
-            console.log(data);
+
         } catch (err) {
             setError('Erro ao exportar perfil');
             console.error(err);

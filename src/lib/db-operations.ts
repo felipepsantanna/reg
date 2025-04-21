@@ -135,11 +135,11 @@ export async function updateUserProfile(userId: number, profileData: {
 }
 
 // Funções para mídias
-export async function saveMedia(userId: number, type: 'image' | 'video', url: string, position: number) {
+export async function saveMedia(userId: number, type: 'image' | 'video', thumbnail: string, url: string, position: number) {
     const [result] = await pool.execute(
-        'INSERT INTO media (user_id, type, url, position) VALUES (?, ?, ?, ?)',
-        [userId, type, url, position]
-    );
+        'INSERT INTO media (user_id, type, thumbnail, url, position) VALUES (?, ?, ?, ?, ?)',
+        [userId, type, thumbnail, url, position]
+    ) as [ResultSetHeader, any];
     return result;
 }
 
@@ -149,6 +149,14 @@ export async function getMediaByUserId(userId: number) {
         [userId]
     );
     return rows;
+}
+
+export async function getMediaById(id: number) {
+    const [rows] = await pool.execute(
+        'SELECT * FROM media WHERE id = ?',
+        [id]
+    ) as [RowDataPacket[], any];
+    return rows[0];
 }
 
 export async function updateMediaPositions(userId: number, mediaPositions: { id: number; position: number }[]) {
