@@ -24,6 +24,7 @@
     "autoprefixer": "^10.4.18",
     "bcryptjs": "^2.4.3",
     "browser-image-compression": "^2.0.2",
+    "cheerio": "^1.0.0",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",

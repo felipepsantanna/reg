@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import * as cheerio from 'cheerio';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function POST(request: Request) {
@@ -30,24 +31,17 @@ export async function POST(request: Request) {
                 'Content-Type': 'application/json'
             }
         });
-        console.log(await response.text());
+        console.log(response.ok);
+        if(response.ok){
+            const html = await response.text();
+            const $ = cheerio.load(html);
+    
+            // Extract the body content
+            const bodyContent = $('body').html();
+            console.log(bodyContent);
+        }
 
-
-        /*
-        const iframeCode = `<iframe src="${window.location.origin}/profile/${userId}" width="100%" height="600" frameborder="0"></iframe>`;
-        const blob = new Blob([iframeCode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `iframe-${userId}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        */
-
-        const iframeCode = '';
-        return NextResponse.json({ success: true, data: iframeCode });
+        return NextResponse.json({ success: true });
     }
     catch (error) {
         console.error('Erro ao exportar o iframe:', error);

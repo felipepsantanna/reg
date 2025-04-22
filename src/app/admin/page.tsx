@@ -40,6 +40,9 @@ export default function AdminPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativo' | 'inativo'>('todos');
+    const [busca, setBusca] = useState('');
+
     const router = useRouter();
 
     useEffect(() => {
@@ -133,13 +136,33 @@ export default function AdminPage() {
                 throw new Error('Erro ao exportar perfil');
             }
 
-            const data = await response.json();
-            console.log(data);
+           const iframeCode = `<iframe src="https://cdn.rocktools.com.br/profiles/${userId}.html" width="100%" height="600" frameborder="0"></iframe>`;
+                   const blob = new Blob([iframeCode], { type: 'text/plain' });
+                   const url = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = url;
+                   a.download = `iframe-${userId}.txt`;
+                   document.body.appendChild(a);
+                   a.click();
+                   document.body.removeChild(a);
+                   URL.revokeObjectURL(url);
         } catch (err) {
             setError('Erro ao exportar perfil');
             console.error(err);
         }
     };
+
+    const cadastrosFiltrados = users.filter(cadastro => {
+       
+        const matchStatus = filtroStatus === 'todos' || cadastro.user_status === filtroStatus;
+        const matchNome = (cadastro.nome !== null) ? cadastro.nome.toLowerCase().includes(busca.toLowerCase()) : false;
+        const matchBusca = busca === '' ||
+            matchNome ||
+            cadastro.email.toLowerCase().includes(busca.toLowerCase()) ||
+            cadastro.telefone.includes(busca);
+
+        return matchStatus && matchBusca;
+    });
 
     if (loading) {
         return (
@@ -175,7 +198,38 @@ export default function AdminPage() {
             <div className="max-w-7xl mx-auto">
                 <h1 className="text-3xl font-bold text-gray-900 mb-8">Painel Administrativo</h1>
 
-                <div className="flex flex-row-reverse pb-4">
+
+                {/* Filtros */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Status
+                        </label>
+                        <select
+                            value={filtroStatus}
+                            onChange={(e) => setFiltroStatus((e.target as HTMLSelectElement).value as 'todos' | 'ativo' | 'inativo')}
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                            <option value="todos">Todos</option>
+                            <option value="ativo">Ativos</option>
+                            <option value="inativo">Inativos</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Buscar
+                        </label>
+                        <input
+                            type="text"
+                            value={busca}
+                            onChange={(e) => setBusca(e.target.value)}
+                            placeholder="Nome, email ou telefone"
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div className="flex flex-row-reverse pb-4">
                     <div className="basis-128"> <button
                         className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
                         onClick={() => router.push('/admin/cadastrar')}>
@@ -183,6 +237,11 @@ export default function AdminPage() {
                     </button>
                     </div>
                 </div>
+
+                </div>
+
+
+
 
 
                 <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -210,7 +269,7 @@ export default function AdminPage() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {users.map((user) => (
+                            {cadastrosFiltrados.map((user) => (
 
                                 <tr key={user.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -237,6 +296,7 @@ export default function AdminPage() {
                                         {format(new Date(user.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        
                                         {user.user_status === 'ativo' && (
                                             <div className="flex space-x-2">
                                                 <button
