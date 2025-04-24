@@ -14,6 +14,12 @@ interface MediaItem {
     position: number;
     poster?: string;
 }
+
+interface SocialItem {
+    tipo: string;
+    url: string;
+}
+
 export async function POST(request: Request) {
 
     try {
@@ -37,7 +43,6 @@ export async function POST(request: Request) {
             throw new Error('Erro ao buscar perfil');
         }
         const profile = await fetchProfile.json();
-
         const fetchMedia = await fetch(`${process.env.URL_BASE}/api/profiles/${userId}/media`);
         if (!fetchMedia.ok) {
             throw new Error('Erro ao buscar mídias');
@@ -79,15 +84,20 @@ export async function POST(request: Request) {
               <h5 class="fw-semibold">Locais e Serviços</h5>
               <ul class="list-unstyled small">`;
 
-        if (profile.localAtendimento) {
-            content += `<li><strong>Locais de Atendimento:</strong> ${profile.localAtendimento}</li>`;
+                
+        if (profile.local_atendimento) {
+            const localAtendimento: string[] = JSON.parse(profile.local_atendimento);   
+
+            content += `<li><strong>Locais de Atendimento:</strong> ${localAtendimento.map(item => `${item}`).join(', ')}</li>`;
         }
         if (profile.atende) {
-            content += `<li><strong>Atende:</strong> ${profile.atende.replace("[\"", '').replace("\"]", '')}</li>`;
+            const atende: string[] = JSON.parse(profile.atende);
+            content += `<li><strong>Atende:</strong> ${atende.map(item => `${item}`).join(', ')}</li>`;
         }
 
-        if (profile.formaPagamento) {
-            content += `<li><strong>Formas de Pagamento:</strong> ${profile.formaPagamento}</li>`;
+        if (profile.forma_pagamento) {
+            const pagamentos: string[] = JSON.parse(profile.forma_pagamento);
+            content += `<li><strong>Formas de Pagamento:</strong> ${pagamentos.map(item => `${item}`).join(', ')}</li>`;
         }
 
         content += `</ul>
@@ -100,6 +110,22 @@ export async function POST(request: Request) {
                         <p className = "text-gray-600 whitespace-pre-line" > ${profile.descricao} </p>
                             </div>`;
         }
+
+        if (profile.redes_sociais) {
+            content += ` <div class="section-border">
+            <h5 class="fw-semibold">Redes sociais</h5>
+            <ul class="list-unstyled small">`;
+
+            const redes: SocialItem[] = JSON.parse(profile.redes_sociais);
+
+            content += redes.map((item: SocialItem) => {
+                return `<li><strong>${item.tipo}:</strong> ${item.url}</li>`;
+            });
+
+            content += `</ul>
+            </div>`;
+        }
+
 
 
 
@@ -115,13 +141,15 @@ export async function POST(request: Request) {
                                 alt=""
                                 className="img-fluid w-100" />`
                 } else {
-                    i += `<iframe
+                    i += `<div class="ratio ratio-4x3">
+                            <iframe
                                 src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
                                 allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                                 allowFullScreen ="true"
                                 className = "absolute top-0 left-0 w-full h-full rounded-lg">
-                            </iframe>`
+                            </iframe></div>`
                 }
+                i += '</div>';
                 return i;
             });
 
