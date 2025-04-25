@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+import { Client, SFTPWrapper } from 'ssh2';
+
+
 export interface MediaApiResponse {
     thumbnail: string;
     url: string;
@@ -26,6 +29,8 @@ export async function POST(request: Request) {
         }
         else {
             const imageResp = await uploadToCloudflare(file as File);
+            const under = await uploadToUnder(file as File);
+            console.log(under)
             return NextResponse.json(imageResp);
         }
 
@@ -99,6 +104,60 @@ const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaA
         throw error;
     }
 };
+
+const uploadToUnder = async (file: File): Promise<MediaApiResponse> => {
+
+    try {
+        const buffer = await file.arrayBuffer(); // Converte File para ArrayBuffer
+        const content = Buffer.from(buffer); // Converte para Node Buffer
+
+        const conn = new Client();
+
+        return await new Promise<MediaApiResponse>((resolve, reject) => {
+            conn
+                .on('ready', () => {
+                    conn.sftp((err: Error | undefined, sftp: SFTPWrapper) => {
+                        if (err) {
+                            conn.end();
+                            return reject(new Error('Erro ao iniciar SFTP: ' + err.message));
+                        }
+
+                        const remotePath = `/var/www/capitalsexy.com.br/image-teste/${file.name}`;
+                        const writeStream = sftp.createWriteStream(remotePath);
+
+                        writeStream.on('close', () => {
+                            conn.end();
+                            resolve({
+                                thumbnail: `https://cdn.capitalsexy.com.br/image-teste/${file.name}`,
+                                url: `https://cdn.capitalsexy.com.br/image-teste`
+                            });
+                        });
+
+                        writeStream.on('error', (streamErr: Error) => {
+                            conn.end();
+                            reject(new Error('Erro durante o envio: ' + streamErr.message));
+                        });
+
+                        writeStream.write(content);
+                        writeStream.end();
+                    });
+                })
+                .on('error', (connErr: Error) => {
+                    reject(new Error('Erro na conexão SSH: ' + connErr.message));
+                })
+                .connect({
+                    host: process.env.SFTP_HOST!,
+                    port: 22,
+                    username: process.env.SFTP_USER!,
+                    privateKey: process.env.SFTP_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+                    passphrase: process.env.SFTP_PASSPHRASE!,
+                });
+        });
+    } catch (err) {
+        // Aqui o erro é lançado para o seu controller ou frontend capturar
+        throw new Error(`Falha no upload via SSH: ${(err as Error).message}`);
+    }
+}
 
 const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
     try {
