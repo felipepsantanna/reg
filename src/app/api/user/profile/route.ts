@@ -83,6 +83,21 @@ export async function POST(request: Request) {
         if (existingProfile) {
             // Atualizar perfil existente
             result = await updateUserProfile(userId, profileData);
+
+            if (result.affectedRows !== 0) {
+                if (existingProfile.status === 'approved') {
+                    const respExportIframe = await fetch(`/api/admin/exportiframe`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ userId: userId })
+                    });
+                    console.log(respExportIframe);
+                }
+
+            }
+
         } else {
             // Criar novo perfil
             result = await saveUserProfile(userId, profileData);

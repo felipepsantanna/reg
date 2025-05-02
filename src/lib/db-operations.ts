@@ -130,7 +130,8 @@ export async function updateUserProfile(userId: number, profileData: {
             descricao,
             userId
         ]
-    );
+    ) as [ResultSetHeader, any];;
+
     return result;
 }
 
