@@ -3,6 +3,12 @@ import { hash, compare } from 'bcryptjs';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import bcrypt from 'bcryptjs';
 
+type FieldChange = {
+    field: string;
+    oldValue: string | null;
+    newValue: string | null;
+};
+
 // Funções para usuários
 export async function createUser(email: string, password: string) {
     const hashedPassword = await hash(password, 10);
@@ -12,7 +18,6 @@ export async function createUser(email: string, password: string) {
     ) as [ResultSetHeader, any];
     return result;
 }
-
 export async function getUserByEmail(email: string) {
     const [rows] = await pool.execute(
         'SELECT * FROM users WHERE email = ?',
@@ -20,11 +25,9 @@ export async function getUserByEmail(email: string) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
-
 export async function verifyPassword(password: string, hashedPassword: string) {
     return await compare(password, hashedPassword);
 }
-
 // Funções para perfil do usuário
 export async function saveUserProfile(userId: number, profileData: {
     nome: string;
@@ -75,7 +78,6 @@ export async function saveUserProfile(userId: number, profileData: {
     );
     return result;
 }
-
 export async function getUserProfile(userId: number) {
     const [rows] = await pool.execute(
         'SELECT * FROM user_profiles WHERE user_id = ?',
@@ -83,7 +85,6 @@ export async function getUserProfile(userId: number) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
-
 export async function updateUserProfile(userId: number, profileData: {
     nome: string;
     telefone: string;
@@ -134,7 +135,6 @@ export async function updateUserProfile(userId: number, profileData: {
 
     return result;
 }
-
 // Funções para mídias
 export async function saveMedia(userId: number, type: 'image' | 'video', thumbnail: string, url: string, position: number) {
     const [result] = await pool.execute(
@@ -143,7 +143,6 @@ export async function saveMedia(userId: number, type: 'image' | 'video', thumbna
     ) as [ResultSetHeader, any];
     return result;
 }
-
 export async function getMediaByUserId(userId: number) {
     const [rows] = await pool.execute(
         'SELECT * FROM media WHERE user_id = ? ORDER BY position',
@@ -151,7 +150,6 @@ export async function getMediaByUserId(userId: number) {
     );
     return rows;
 }
-
 export async function getMediaById(id: number) {
     const [rows] = await pool.execute(
         'SELECT * FROM media WHERE id = ?',
@@ -159,7 +157,6 @@ export async function getMediaById(id: number) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
-
 export async function updateMediaPositions(userId: number, mediaPositions: { id: number; position: number }[]) {
     const connection = await pool.getConnection();
     try {
@@ -180,7 +177,6 @@ export async function updateMediaPositions(userId: number, mediaPositions: { id:
         connection.release();
     }
 }
-
 // Funções para configurações de layout
 export async function saveLayoutConfig(userId: number, layoutType: string) {
     const [result] = await pool.execute(
@@ -189,7 +185,6 @@ export async function saveLayoutConfig(userId: number, layoutType: string) {
     );
     return result;
 }
-
 export async function getLayoutConfig(userId: number) {
     const [rows] = await pool.execute(
         'SELECT * FROM layout_config WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
@@ -197,14 +192,12 @@ export async function getLayoutConfig(userId: number) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
-
 interface UserRow extends RowDataPacket {
     id: number;
     email: string;
     password: string;
     role: 'admin' | 'anunciante';
 }
-
 export async function getUser(email: string, password: string) {
     // Validar campos obrigatórios
     if (!email || !password) {
@@ -239,4 +232,36 @@ export async function getUser(email: string, password: string) {
         console.error('Erro ao buscar usuário:', error);
         return null;
     }
-} 
+}
+export async function saveAuditLogs(
+    userId: number,
+    changes: FieldChange[],
+): Promise<void> {
+    const query = `
+    INSERT INTO audit_logs (userId, field, oldValue, newValue, updatedAt, reviewed)
+    VALUES (?, ?, ?, ?, NOW(), false)
+  `;
+
+    const connection = await pool.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        for (const change of changes) {
+            await connection.execute(query, [
+                userId,
+                change.field,
+                change.oldValue,
+                change.newValue,
+            ]);
+        }
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        console.error('Erro ao salvar logs de auditoria:', error);
+        throw error;
+    } finally {
+        connection.release();
+    }
+}

@@ -1,6 +1,5 @@
 import mysql from 'mysql2/promise';
 import { RowDataPacket } from 'mysql2';
-import bcrypt from 'bcryptjs';
 
 interface UserRow extends RowDataPacket {
     id: string;
@@ -17,9 +16,6 @@ interface AnuncianteUser extends UserRow {
     ultimaAtualizacao: Date;
 }
 
-interface CountRow extends RowDataPacket {
-    count: number;
-}
 
 const pool = mysql.createPool({
     host: process.env.MYSQL_HOST,
@@ -36,27 +32,6 @@ export default pool;
 
 // Simulação de banco de dados
 export const users: UserRow[] = [];
-
-// Função para inicializar o banco de dados com usuários de teste
-export async function initializeDB() {
-    // Verificar se já existem usuários
-    const [rows] = await pool.execute<CountRow[]>('SELECT COUNT(*) as count FROM users');
-    if (rows[0].count > 0) return;
-
-    // Criar usuários iniciais se não existirem
-    const adminPassword = await bcrypt.hash('adm123', 10);
-    const anunciantePassword = await bcrypt.hash('ad0123', 10);
-
-    await pool.execute(
-        'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-        ['admin@admin.com.br', adminPassword, 'admin']
-    );
-
-    await pool.execute(
-        'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-        ['ad@ad.com.br', anunciantePassword, 'anunciante']
-    );
-}
 
 // Função para buscar usuário por email
 export async function findUserByEmail(email: string): Promise<UserRow | null> {

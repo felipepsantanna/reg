@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import { saveUserProfile, getUserProfile, updateUserProfile } from '@/lib/db-operations';
+import { saveUserProfile, getUserProfile, updateUserProfile, saveAuditLogs } from '@/lib/db-operations';
+import { getUpdatedFields } from '@/lib/getUpdatedFields';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
@@ -81,6 +82,14 @@ export async function POST(request: Request) {
 
         let result;
         if (existingProfile) {
+
+
+            const changes = await getUpdatedFields(existingProfile, profileData);
+
+            if (changes && changes.length > 0) {
+                await saveAuditLogs(userId, changes);
+            }
+
             // Atualizar perfil existente
             result = await updateUserProfile(userId, profileData);
 
