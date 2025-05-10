@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+/*import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";*/
 
 
 
@@ -27,12 +27,7 @@ export async function POST(request: Request) {
             return NextResponse.json(videoResp);
         }
         else {
-            const imageResp = await uploadToCloudflare(file as File);
-            const under = await fetch('https://localhost:7199/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-            console.log(under)
+            const imageResp = await uploadToBunnyStorage(file as File);
             return NextResponse.json(imageResp);
         }
 
@@ -108,7 +103,7 @@ const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaA
 };
 
 
-const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
+/*const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
     try {
 
         const s3Client = new S3Client({
@@ -148,4 +143,47 @@ const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
         console.error('Erro ao fazer upload para Cloudflare:', error);
         throw error;
     }
-};
+};*/
+
+const uploadToBunnyStorage = async (file: File): Promise<MediaApiResponse> => {
+    // Dados do Bunny Storage
+    const storageZone = process.env.BUNNY_STORAGE_ZONE!;
+    const accessKey = process.env.BUNNY_ACCESS_KEY!;
+    const region = process.env.BUNNY_REGION!; // ex: "ny"
+    const pullZoneUrl = process.env.BUNNY_PULLZONE_URL!; // ex: "https://minhacdn.b-cdn.net"
+
+    // Nome final do arquivo no storage (você pode personalizar com timestamp, etc)
+    const fileName = `uploads/${Date.now()}-${file.name}`;
+
+    const uploadUrl = `https://${region}.storage.bunnycdn.com/${storageZone}/${fileName}`;
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    try {
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                AccessKey: accessKey,
+                'Content-Type': 'application/octet-stream',
+            },
+            body: buffer,
+        });
+
+        if (!uploadResponse.ok) {
+            throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
+        }
+
+        const publicUrl = `${pullZoneUrl}/${fileName}`;
+
+        const response = {
+            thumbnail: publicUrl,
+            url: publicUrl
+        };
+
+        return response;
+    } catch (err: any) {
+        console.error('Erro ao fazer upload para Bunny Storage:', err);
+        throw err;
+    }
+}
