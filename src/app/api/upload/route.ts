@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
+import { getUserProfile } from '@/lib/db-operations';
 /*import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";*/
 
 
@@ -22,12 +26,39 @@ export async function POST(request: Request) {
             );
         }
 
+        const token = cookies().get('auth_token');
+       
+               if (!token) {
+                   return NextResponse.json(
+                       { message: 'Não autorizado' },
+                       { status: 401 }
+                   );
+               }
+       
+               let userId: number;
+               try {
+                   const { payload } = await jwtVerify(
+                       token.value,
+                       new TextEncoder().encode(JWT_SECRET)
+                   );
+                   userId = payload.userId as number;
+               } catch (error) {
+                   return NextResponse.json(
+                       { message: 'Token inválido' },
+                       { status: 401 }
+                   );
+               } 
+
         if (isVideo) {
             const videoResp = await uploadToBunnyCDN(file as File, contentType);
             return NextResponse.json(videoResp);
         }
         else {
-            const imageResp = await uploadToBunnyStorage(file as File);
+            const user = await getUserProfile(userId);
+            console.log(user);
+            const path = `${stringToSlug(user.sexo)}/${stringToSlug(user.nome)}`;
+            console.log('uploadToBunnyStorage')
+            const imageResp = await uploadToBunnyStorage(file as File, path);
             return NextResponse.json(imageResp);
         }
 
@@ -145,36 +176,35 @@ const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaA
     }
 };*/
 
-const uploadToBunnyStorage = async (file: File): Promise<MediaApiResponse> => {
+const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiResponse> => {
     // Dados do Bunny Storage
-    const storageZone = process.env.BUNNY_STORAGE_ZONE!;
-    const accessKey = process.env.BUNNY_ACCESS_KEY!;
-    const region = process.env.BUNNY_REGION!; // ex: "ny"
-    const pullZoneUrl = process.env.BUNNY_PULLZONE_URL!; // ex: "https://minhacdn.b-cdn.net"
+    const storageHost = process.env.BUNNY_STORAGE_HOST!;
+    const storageName = process.env.BUNNY_STORAGE_NAME!;
+    const accessKey = process.env.BUNNY_STORAGE_ACCESS!;
+    const pullZoneUrl = "capitalsexy.b-cdn.net"; 
 
-    // Nome final do arquivo no storage (você pode personalizar com timestamp, etc)
-    const fileName = `uploads/${Date.now()}-${file.name}`;
-
-    const uploadUrl = `https://${region}.storage.bunnycdn.com/${storageZone}/${fileName}`;
-
+    const uploadUrl = `${storageHost}/${storageName}/${path}/${file.name}`;
+    console.log(uploadUrl)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
     try {
-        const uploadResponse = await fetch(uploadUrl, {
+        const uploadResponse = await fetch(`${uploadUrl}`, {
             method: 'PUT',
             headers: {
-                AccessKey: accessKey,
+                'AccessKey': accessKey,
                 'Content-Type': 'application/octet-stream',
+                'accept': 'application/json'
             },
             body: buffer,
         });
 
+        console.log(uploadResponse)
+
         if (!uploadResponse.ok) {
             throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
         }
-
-        const publicUrl = `${pullZoneUrl}/${fileName}`;
+        const publicUrl = `https://${pullZoneUrl}/${path}/${file.name}`;
 
         const response = {
             thumbnail: publicUrl,
@@ -186,4 +216,23 @@ const uploadToBunnyStorage = async (file: File): Promise<MediaApiResponse> => {
         console.error('Erro ao fazer upload para Bunny Storage:', err);
         throw err;
     }
+}
+const stringToSlug = (str: string): string => {
+  if (!str) {
+    return '';
+  }
+
+  // Remove caracteres especiais e acentos, converte para minúsculo
+  const normalizedStr = str
+    .normalize('NFD') // Decompõe caracteres acentuados em base + combining diacritic
+    .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritics
+    .toLowerCase();
+
+  // Substitui espaços e outros caracteres indesejados por hífens
+  const slug = normalizedStr
+    .replace(/\s+/g, '-') // Substitui espaços por hífens
+    .replace(/[^\w-]+/g, '') // Remove caracteres não alfanuméricos (exceto hífens)
+    .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
+
+  return slug;
 }
