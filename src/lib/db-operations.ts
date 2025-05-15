@@ -271,7 +271,7 @@ export async function getAuditLogs(userId: number) {
         'SELECT * FROM audit_logs WHERE userid = ?',
         [userId]
     ) as [RowDataPacket[], any];
-    return rows[0];
+    return rows;
 }
 export async function saveUserFirstAccess(userId: number,) {
     const [result] = await pool.execute(

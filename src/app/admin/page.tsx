@@ -310,14 +310,14 @@ export default function AdminPage() {
                                                     onClick={() => handleExportIframe(user.id)}
                                                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                 >
-                                                   <AiOutlineExport />
+                                                   <AiOutlineExport size={20}/>
                                                 </button>
                                                 {user.status !== 'approved' && (
                                                     <button
                                                         onClick={() => handleApprove(user.id)}
                                                         className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                         <FaCheckCircle />
+                                                         <FaCheckCircle size={20}/>
                                                     </button>
                                                 )}
                                                 {user.status !== 'rejected' && (
@@ -325,7 +325,7 @@ export default function AdminPage() {
                                                         onClick={() => handleReject(user.id)}
                                                         className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        <FaTimesCircle />
+                                                        <FaTimesCircle size={20}/>
                                                     </button>
                                                 )}
                                                 
@@ -334,7 +334,7 @@ export default function AdminPage() {
                                                         onClick={() => handleOpen(user.id)}
                                                         className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        <AiOutlineEye />
+                                                        <AiOutlineEye size={20}/>
                                                     </button>) }
                                             </div>
                                         )}
