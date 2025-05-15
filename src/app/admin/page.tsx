@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { FaCheckCircle, FaTimesCircle  } from 'react-icons/fa';
+import { AiOutlineExport, AiOutlineEye } from 'react-icons/ai';
 
 interface User {
     id: number;
@@ -34,6 +36,7 @@ interface User {
     photo_count: number;
     video_count: number;
     status: 'pending' | 'approved' | 'rejected';
+    updates: number;
 }
 
 export default function AdminPage() {
@@ -150,6 +153,10 @@ export default function AdminPage() {
             setError('Erro ao exportar perfil');
             console.error(err);
         }
+    };
+
+     const handleOpen = (userId: number) => {
+        router.push(`/admin/alteracoes/${userId}`);
     };
 
     const cadastrosFiltrados = users.filter(cadastro => {
@@ -303,14 +310,14 @@ export default function AdminPage() {
                                                     onClick={() => handleExportIframe(user.id)}
                                                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                 >
-                                                    Exportar Iframe
+                                                   <AiOutlineExport />
                                                 </button>
                                                 {user.status !== 'approved' && (
                                                     <button
                                                         onClick={() => handleApprove(user.id)}
                                                         className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        Aprovar
+                                                         <FaCheckCircle />
                                                     </button>
                                                 )}
                                                 {user.status !== 'rejected' && (
@@ -318,13 +325,24 @@ export default function AdminPage() {
                                                         onClick={() => handleReject(user.id)}
                                                         className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        Reprovar
+                                                        <FaTimesCircle />
                                                     </button>
                                                 )}
+                                                
+                                                {( user.updates !== null && user.updates > 0) && ( 
+                                                    <button
+                                                        onClick={() => handleOpen(user.id)}
+                                                        className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    >
+                                                        <AiOutlineEye />
+                                                    </button>) }
                                             </div>
                                         )}
+                                        
                                     </td>
                                 </tr>
+
+                                
                             ))}
                         </tbody>
                     </table>

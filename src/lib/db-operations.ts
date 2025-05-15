@@ -131,7 +131,7 @@ export async function updateUserProfile(userId: number, profileData: {
             descricao,
             userId
         ]
-    ) as [ResultSetHeader, any];;
+    ) as [ResultSetHeader, any];
 
     return result;
 }
@@ -226,7 +226,8 @@ export async function getUser(email: string, password: string) {
         return {
             id: user.id,
             email: user.email,
-            role: user.role
+            role: user.role,
+            status: user.status
         };
     } catch (error) {
         console.error('Erro ao buscar usuário:', error);
@@ -264,4 +265,18 @@ export async function saveAuditLogs(
     } finally {
         connection.release();
     }
+}
+export async function getAuditLogs(userId: number) {
+    const [rows] = await pool.execute(
+        'SELECT * FROM audit_logs WHERE userid = ?',
+        [userId]
+    ) as [RowDataPacket[], any];
+    return rows[0];
+}
+export async function saveUserFirstAccess(userId: number,) {
+    const [result] = await pool.execute(
+        'update users set status = ? where id = ?',
+        ['ativo', userId]
+    ) as [ResultSetHeader, any];
+    return result;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SignJWT } from 'jose';
-import { getUser } from '@/lib/db-operations';
+import { getUser, saveUserFirstAccess } from '@/lib/db-operations';
 
 export async function POST(request: Request) {
     try {
@@ -38,6 +38,11 @@ export async function POST(request: Request) {
             sameSite: 'strict',
             maxAge: 60 * 60 * 24 // 24 horas
         });
+
+        if(user.status === 'primeiro acesso'){
+           await saveUserFirstAccess(user.id);
+        }
+
 
         return NextResponse.json({
             success: true,

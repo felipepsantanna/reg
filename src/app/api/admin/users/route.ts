@@ -21,7 +21,7 @@ export async function GET() {
         }
 
         const [users] = await pool.execute<UserRow[]>(`
-            SELECT 
+             SELECT 
                 u.id,
                 u.email,
                 u.role,
@@ -36,10 +36,12 @@ export async function GET() {
                 p.status,
                 COUNT(DISTINCT m.id) as media_count,
                 SUM(CASE WHEN m.type = 'image' THEN 1 ELSE 0 END) as photo_count,
-                SUM(CASE WHEN m.type = 'video' THEN 1 ELSE 0 END) as video_count
+                SUM(CASE WHEN m.type = 'video' THEN 1 ELSE 0 END) as video_count,
+                a.updates
             FROM users u
             LEFT JOIN user_profiles p ON u.id = p.user_id
             LEFT JOIN media m ON u.id = m.user_id
+            LEFT JOIN (SELECT COUNT(*) updates, userid from audit_logs group by userid) a on a.userid = u.id
             where u.role = 'anunciante'
             GROUP BY u.id, p.id
             ORDER BY u.updated_at DESC;

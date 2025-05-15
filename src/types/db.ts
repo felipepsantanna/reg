@@ -28,6 +28,7 @@ export interface UserRow extends RowDataPacket {
     photo_count: number;
     video_count: number;
     status: 'pending' | 'approved' | 'rejected';
+    updates: number;
 }
 
 export interface ProfileRow extends RowDataPacket {
@@ -49,3 +50,13 @@ export interface ProfileRow extends RowDataPacket {
     updated_at: Date;
     email: string;
 } 
+
+export interface AuditLogsRow extends RowDataPacket{
+    id: number;
+    userId: number;
+    field: string;
+    oldValue: string;
+    newValue: string;
+    updatedAt: Date;
+    reviewed: number;
+}
