@@ -234,6 +234,15 @@ export default function DashboardPage() {
                         Sair
                     </button>
                 </div>
+
+                <ul className="flex flex-wrap text-sm font-medium text-center border-b border-indigo-200 dark:border-indigo-700">
+                    <li className="me-2">
+                        <a href="/dashboard" className="inline-block p-4 border border-transparent text-sm font-medium rounded-md hover:bg-indigo-700 hover:text-white dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Profile</a>
+                    </li>
+                    <li className="me-2">
+                        <a href="#" aria-current="page" className="inline-block p-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Uploads</a>
+                    </li>
+                </ul>
                 
                 {/* Upload de mídia */}
                 <div className="bg-white rounded-lg shadow p-6 mb-8">

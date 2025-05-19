@@ -1,225 +1,160 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
-import UserProfileForm, { UserProfileData } from './UserProfileForm';
-import StrictModeDroppable from './StrictModeDroppable';
 import { useRouter } from 'next/navigation';
-
-interface ProcessingFile {
-    id: string;
-    file: File;
-    progress: number;
-    type: 'image' | 'video';
-    name: string;
-    status: 'uploading' | 'completed' | 'error';
-}
-
-interface MediaItem {
-    id: string;
-    type: 'image' | 'video';
-    url: string;
-    thumbnail: string;
-    position: number;
-}
 
 export interface MediaUploadResponse {
     thumbnail: string;
     url: string;
 }
 
+export interface UserProfileData {
+    nome: string;
+    telefone: string;
+    sexo: string;
+    tamanho_dote?: string;
+    idade: string;
+    altura: string;
+    peso: string;
+    local_atendimento: string[];
+    atende: string[];
+    forma_pagamento: string[];
+    redes_sociais: { tipo: string; url: string }[];
+    descricao: string;
+}
 
-const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 export default function DashboardPage() {
+    const [allowed, setAllowed] = useState("cursor-not-allowed");
+    const [registered, setRegistered] = useState("#");
+    const [formData, setFormData] = useState<UserProfileData>({
+        nome: '',
+        telefone: '',
+        sexo: '',
+        tamanho_dote: '',
+        idade: '',
+        altura: '',
+        peso: '',
+        local_atendimento: [],
+        atende: [],
+        forma_pagamento: [],
+        redes_sociais: [],
+        descricao: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
-    const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-    const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([]);
     const router = useRouter();
 
-
-    useEffect(() => {
-        // Carregar mídias do usuário
-        const fetchMedia = async () => {
+        useEffect(() => {
+        // Carregar dados do perfil se existirem
+        const fetchProfile = async () => {
             try {
-                const response = await fetch('/api/user/media');
+                setLoading(true);
+                const response = await fetch('/api/user/profile');
 
                 if (response.ok) {
                     const data = await response.json();
-                    setMediaItems(data.media || []);
+                    if (data.data) {
+                        setFormData(data.data);
+                        setAllowed('');
+                        setRegistered('/dashboard/upload');
+                    }
                 }
-            } catch (error) {
-                console.error('Erro ao carregar mídias:', error);
+            } catch (err) {
+                console.error('Erro ao carregar perfil:', err);
+            } finally {
+                setLoading(false);
             }
         };
 
-        fetchMedia();
+        fetchProfile();
     }, []);
 
-
-
-    const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files) return;
-
-        const newProcessingFiles: ProcessingFile[] = [];
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const isImage = file.type.startsWith('image/');
-            const isVideo = file.type.startsWith('video/');
-
-            if (!isImage && !isVideo) {
-                alert('Tipo de arquivo não suportado. Apenas imagens e vídeos são permitidos.');
-                continue;
-            }
-
-            const maxSize = isImage ? Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) : Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE);
-            if (file.size > maxSize) {
-                alert(`Arquivo muito grande. O tamanho máximo permitido é ${formatFileSize(maxSize)}`);
-                continue;
-            }
-
-            const maxCount = isImage ? Number(process.env.NEXT_PUBLIC_MAX_FOTOS) : Number(process.env.NEXT_PUBLIC_MAX_VIDEOS);
-            const currentCount = mediaItems.filter(item => item.type === (isImage ? 'image' : 'video')).length;
-            if (currentCount >= maxCount) {
-                alert(`Limite de ${maxCount} ${isImage ? 'fotos' : 'vídeos'} atingido`);
-                continue;
-            }
-
-            const newProcessingFile: ProcessingFile = {
-                id: `${Date.now()}-${i}`,
-                file,
-                progress: 0,
-                type: isImage ? 'image' : 'video',
-                name: file.name,
-                status: 'uploading'
-            };
-            newProcessingFiles.push(newProcessingFile);
-            setProcessingFiles(prev => [...prev, newProcessingFile]);
-
-            try {
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('fileType', file.type);
-
-                const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    throw new Error('Erro ao salvar mídia no banco de dados');
-                }
-                const objectMediaUpload = await uploadResponse.json() as MediaUploadResponse;
-
-                // Salvar mídia no banco de dados
-                const response = await fetch('/api/user/media', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        type: isImage ? 'image' : 'video',
-                        url: objectMediaUpload.url,
-                        thumbnail: objectMediaUpload.thumbnail,
-                        position: mediaItems.length
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Erro ao salvar mídia no banco de dados');
-                }
-
-                const { data } = await response.json();
-
-                setProcessingFiles(prev => prev.map(pf =>
-                    pf.id === newProcessingFile.id
-                        ? { ...pf, progress: 100, status: 'completed' }
-                        : pf
-                ));
-
-                setMediaItems(prev => [...prev, {
-                    id: data.id,
-                    type: isImage ? 'image' : 'video',
-                    url: data.url,
-                    thumbnail: data.thumbnail,
-                    position: mediaItems.length + 1
-                }]);
-
-
-
-                setProcessingFiles((prev: ProcessingFile[]) => prev.filter(item => item.id !== newProcessingFile.id));
-
-            } catch (error) {
-                console.error('Erro ao processar arquivo:', error);
-                setProcessingFiles(prev => prev.map(pf =>
-                    pf.id === newProcessingFile.id
-                        ? { ...pf, status: 'error' }
-                        : pf
-                ));
-            }
-        }
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
-    const handleDragEnd = async (result: DropResult) => {
-        if (!result.destination) return;
-
-        const items = Array.from(mediaItems);
-        const [reorderedItem] = items.splice(result.source.index, 1);
-        items.splice(result.destination.index, 0, reorderedItem);
-
-        // Atualizar posições localmente primeiro
-        const updatedItems = items.map((item, index) => ({
-            ...item,
-            position: index
+    const handleArrayChange = (name: string, value: string, checked: boolean) => {
+        setFormData(prev => ({
+            ...prev,
+            [name]: checked
+                ? [...prev[name as keyof UserProfileData] as string[], value]
+                : (prev[name as keyof UserProfileData] as string[]).filter(item => item !== value)
         }));
+    };
 
-        setMediaItems(updatedItems);
+    const handleRedeSocialChange = (index: number, field: 'tipo' | 'url', value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            redes_sociais: prev.redes_sociais.map((rede, i) =>
+                i === index ? { ...rede, [field]: value } : rede
+            )
+        }));
+    };
+
+    const addRedeSocial = () => {
+        setFormData(prev => ({
+            ...prev,
+            redes_sociais: [...prev.redes_sociais, { tipo: '', url: '' }]
+        }));
+    };
+
+    const removeRedeSocial = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            redes_sociais: prev.redes_sociais.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Validar se o campo dote é obrigatório apenas quando o sexo for "trans"
+        if (formData.sexo === 'trans' && !formData.tamanho_dote) {
+            setError('O campo Tamanho do Dote é obrigatório para pessoas trans');
+            return;
+        }
 
         try {
-            const response = await fetch('/api/user/media', {
-                method: 'PUT',
+            setLoading(true);
+            setError('');
+            setSuccess('');
+
+            const response = await fetch('/api/user/profile', {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    mediaPositions: updatedItems.map((item, index) => ({
-                        id: item.id,
-                        position: index
-                    }))
-                })
+                body: JSON.stringify(formData),
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error('Erro ao atualizar posições');
+                throw new Error(data.message || 'Erro ao salvar perfil');
             }
-        } catch (error) {
-            console.error('Erro ao salvar nova ordem:', error);
 
+            setSuccess('Perfil salvo com sucesso!');
+            setAllowed('');
+            setRegistered('/dashboard/upload');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erro ao salvar perfil');
+        } finally {
+            setLoading(false);
         }
-    };
-
-    const removeMedia = (id: string) => {
-        setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
-    };
-
-    const handleProfileSave = (profileData: UserProfileData) => {
-        console.log(profileData)
     };
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-6xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Cadastro</h1>
                     <button
                         onClick={async () => {
                             try {
@@ -238,149 +173,281 @@ export default function DashboardPage() {
                         Sair
                     </button>
                 </div>
-                
+
+                <ul className="flex flex-wrap text-sm font-medium text-center border-b border-indigo-200 dark:border-indigo-700">
+                    <li className="me-2">
+                        <a href="#" aria-current="page" className="inline-block p-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Profile</a>
+                    </li>
+                    <li className="me-2">
+                        <a href={registered} className={"inline-block p-4 border border-transparent text-sm font-medium rounded-md hover:bg-indigo-700 hover:text-white dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " + allowed}>Uploads</a>
+                    </li>
+                </ul>
+
                 {/* Formulário de cadastro */}
                 <div className="mb-8">
-                    <UserProfileForm onSave={handleProfileSave} />
+                     <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Dados de Cadastro</h2>
+
+            {error && (
+                <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+                    {error}
                 </div>
+            )}
 
-                {/* Upload de mídia */}
-                <div className="bg-white rounded-lg shadow p-6 mb-8">
-                    <h2 className="text-2xl font-bold mb-4">Suas Mídias</h2>
+            {success && (
+                <div className="mb-4 p-4 bg-green-100 text-green-700 rounded">
+                    {success}
+                </div>
+            )}
 
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Adicionar Imagens ou Vídeos
+            <form onSubmit={handleSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
+                            Nome Completo
                         </label>
                         <input
-                            type="file"
-                            accept="image/*,video/*"
-                            multiple
-                            onChange={handleMediaChange}
-                            className="block w-full text-sm text-gray-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-full file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-blue-700
-                                hover:file:bg-blue-100"
+                            type="text"
+                            id="nome"
+                            name="nome"
+                            value={formData.nome}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <p className="mt-1 text-sm text-gray-500">
-                            Imagens até 10MB, vídeos até 100MB
-                        </p>
                     </div>
 
-                    {/* Lista de processamento */}
-                    {processingFiles.length > 0 && (
-                        <div className="mb-6">
-                            <h3 className="text-lg font-medium mb-2">Processando arquivos...</h3>
-                            <div className="space-y-2">
-                                {processingFiles.map(item => (
-                                    <div key={item.id} className="flex items-center">
-                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                            <div
-                                                className="bg-blue-600 h-2.5 rounded-full"
-                                                style={{ width: `${item.progress}%` }}
-                                            ></div>
-                                        </div>
-                                        <span className="ml-2 text-sm text-gray-600">{item.name}</span>
-                                        <span className="ml-2 text-sm text-gray-600">{item.progress}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Galeria de mídias */}
-                    <div className="mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <div className="text-sm text-gray-600">
-                                <p>Fotos: {mediaItems.filter(item => item.type === 'image').length}/{process.env.NEXT_PUBLIC_MAX_FOTOS}</p>
-                                <p>Vídeos: {mediaItems.filter(item => item.type === 'video').length}/{process.env.NEXT_PUBLIC_MAX_VIDEOS}</p>
-                            </div>
-                            <div className="text-sm text-gray-600">
-                                <p>Limite de fotos: {Number(process.env.NEXT_PUBLIC_MAX_FOTO_SIZE) / 1024 / 1024}MB</p>
-                                <p>Limite de vídeos: {Number(process.env.NEXT_PUBLIC_MAX_VIDEO_SIZE) / 1024 / 1024}MB</p>
-                            </div>
-                        </div>
-
-                        <DragDropContext onDragEnd={handleDragEnd}>
-                            <StrictModeDroppable droppableId="media-gallery">
-                                {(provided) => (
-                                    <div
-                                        {...provided.droppableProps}
-                                        ref={provided.innerRef}
-                                        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-                                    >
-                                        {mediaItems.map((item, index) => (
-                                            <Draggable
-                                                key={item.id.toString()}
-                                                draggableId={item.id.toString()}
-                                                index={index}
-                                            >
-                                                {(provided, snapshot) => (
-                                                    <div
-                                                        ref={provided.innerRef}
-                                                        {...provided.draggableProps}
-                                                        {...provided.dragHandleProps}
-                                                        className={`relative aspect-square ${snapshot.isDragging ? 'z-50' : ''}`}
-                                                    >
-                                                        <div className="aspect-square w-full">
-                                                            {item.type === 'image' ? (
-                                                                <img
-                                                                    src={item.url}
-                                                                    alt="Mídia"
-                                                                    className="w-full h-full object-cover"
-                                                                    onError={(e) => {
-                                                                        console.error('Erro ao carregar imagem:', e);
-                                                                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150x150?text=Erro+ao+carregar';
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <div className="relative w-full h-full">
-                                                                    <video
-                                                                        src={`https://vz-ddb4a7c6-db0.b-cdn.net/${item.url}/preview.webp`}
-                                                                        poster={item.thumbnail}
-                                                                        className="w-full h-full object-cover"
-
-                                                                    />
-                                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <div className="w-12 h-12 rounded-full bg-white/80 flex items-center justify-center">
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                            </svg>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="absolute top-2 left-2 z-20 bg-black/70 text-white px-2 py-1 rounded text-sm">
-                                                            {index + 1}
-                                                        </div>
-                                                        <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
-                                                            <div className="bg-black/70 text-white px-2 py-1 rounded text-sm">
-                                                                {item.type === 'image' ? 'Imagem' : 'Vídeo'}
-                                                            </div>
-                                                            <button
-                                                                onClick={() => removeMedia(item.id)}
-                                                                className="bg-red-500 text-white p-1 rounded hover:bg-red-600"
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </Draggable>
-                                        ))}
-                                        {provided.placeholder}
-                                    </div>
-                                )}
-                            </StrictModeDroppable>
-                        </DragDropContext>
+                    <div>
+                        <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">
+                            Telefone
+                        </label>
+                        <input
+                            type="tel"
+                            id="telefone"
+                            name="telefone"
+                            value={formData.telefone}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                     </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label htmlFor="sexo" className="block text-sm font-medium text-gray-700 mb-1">
+                            Sexo
+                        </label>
+                        <select
+                            id="sexo"
+                            name="sexo"
+                            value={formData.sexo}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Selecione</option>
+                            <option value="feminino">Feminino</option>
+                            <option value="masculino">Masculino</option>
+                            <option value="trans">Trans</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label htmlFor="idade" className="block text-sm font-medium text-gray-700 mb-1">
+                            Idade
+                        </label>
+                        <input
+                            type="number"
+                            id="idade"
+                            name="idade"
+                            value={formData.idade}
+                            onChange={handleChange}
+                            required
+                            min="18"
+                            max="99"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    {formData.sexo === 'trans' && (
+                        <div>
+                            <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
+                                Tamanho do Dote <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="tamanho_dote"
+                                name="tamanho_dote"
+                                value={formData.tamanho_dote}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label htmlFor="altura" className="block text-sm font-medium text-gray-700 mb-1">
+                            Altura
+                        </label>
+                        <input
+                            type="text"
+                            id="altura"
+                            name="altura"
+                            value={formData.altura}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="peso" className="block text-sm font-medium text-gray-700 mb-1">
+                            Peso
+                        </label>
+                        <input
+                            type="text"
+                            id="peso"
+                            name="peso"
+                            value={formData.peso}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Local de Atendimento
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {['motel', 'hotel', 'local próprio', 'residência'].map(local => (
+                            <label key={local} className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.local_atendimento.includes(local)}
+                                    onChange={(e) => handleArrayChange('local_atendimento', local, e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>{local}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Atende
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {['homens', 'mulheres', 'casais'].map(tipo => (
+                            <label key={tipo} className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.atende.includes(tipo)}
+                                    onChange={(e) => handleArrayChange('atende', tipo, e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>{tipo}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Forma de Pagamento
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {['Dinheiro', 'PIX', 'Cartão', 'Transferência'].map(forma => (
+                            <label key={forma} className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.forma_pagamento.includes(forma)}
+                                    onChange={(e) => handleArrayChange('forma_pagamento', forma, e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>{forma}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Redes Sociais
+                    </label>
+                    {formData.redes_sociais.map((rede, index) => (
+                        <div key={index} className="flex gap-2 mb-2">
+                            <select
+                                value={rede.tipo}
+                                onChange={(e) => handleRedeSocialChange(index, 'tipo', e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">Selecione</option>
+                                <option value="instagram">Instagram</option>
+                                <option value="twitter">Twitter</option>
+                                <option value="facebook">Facebook</option>
+                                <option value="tiktok">TikTok</option>
+                                <option value="privacy">Privacy</option>
+                                <option value="onlyfans">OnlyFans</option>
+                            </select>
+                            <input
+                                type="url"
+                                value={rede.url}
+                                onChange={(e) => handleRedeSocialChange(index, 'url', e.target.value)}
+                                placeholder="URL"
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => removeRedeSocial(index)}
+                                className="px-3 py-2 text-red-600 hover:text-red-800"
+                            >
+                                Remover
+                            </button>
+                        </div>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={addRedeSocial}
+                        className="mt-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+                    >
+                        + Adicionar Rede Social
+                    </button>
+                </div>
+
+                <div className="mb-6">
+                    <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">
+                        Descrição
+                    </label>
+                    <textarea
+                        id="descricao"
+                        name="descricao"
+                        value={formData.descricao}
+                        onChange={handleChange}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+
+                <div className="flex justify-end">
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {loading ? 'Salvando...' : 'Salvar Dados'}
+                    </button>
+                </div>
+            </form>
+        </div>
+                </div>
+
             </div>
         </div>
     );
