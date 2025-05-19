@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
-import UserProfileForm, { UserProfileData } from './UserProfileForm';
-import StrictModeDroppable from './StrictModeDroppable';
+import StrictModeDroppable from '../StrictModeDroppable';
 import { useRouter } from 'next/navigation';
 
 interface ProcessingFile {
@@ -211,15 +210,12 @@ export default function DashboardPage() {
         setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
     };
 
-    const handleProfileSave = (profileData: UserProfileData) => {
-        console.log(profileData)
-    };
 
     return (
         <div className="min-h-screen bg-gray-100 p-8">
             <div className="max-w-6xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Uploads</h1>
                     <button
                         onClick={async () => {
                             try {
@@ -239,11 +235,6 @@ export default function DashboardPage() {
                     </button>
                 </div>
                 
-                {/* Formulário de cadastro */}
-                <div className="mb-8">
-                    <UserProfileForm onSave={handleProfileSave} />
-                </div>
-
                 {/* Upload de mídia */}
                 <div className="bg-white rounded-lg shadow p-6 mb-8">
                     <h2 className="text-2xl font-bold mb-4">Suas Mídias</h2>
