@@ -4,8 +4,9 @@ import { cookies } from 'next/headers';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getUserProfile } from '@/lib/db-operations';
 /*import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";*/
-
-
+import sharp from 'sharp';
+import _path from 'path';
+import fs from 'fs/promises'
 
 export interface MediaApiResponse {
     thumbnail: string;
@@ -55,9 +56,9 @@ export async function POST(request: Request) {
         }
         else {
             const user = await getUserProfile(userId);
-            console.log(user);
             const path = `${stringToSlug(user.sexo)}/${stringToSlug(user.nome)}`;
-            console.log('uploadToBunnyStorage')
+
+            
             const imageResp = await uploadToBunnyStorage(file as File, path);
             return NextResponse.json(imageResp);
         }
@@ -71,7 +72,6 @@ export async function POST(request: Request) {
         );
     }
 }
-
 
 const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaApiResponse> => {
     const libraryId = process.env.BUNNY_LIBRARY_ID;
@@ -133,7 +133,6 @@ const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaA
     }
 };
 
-
 /*const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
     try {
 
@@ -184,10 +183,20 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const pullZoneUrl = "capitalsexy.b-cdn.net"; 
 
     const uploadUrl = `${storageHost}/${storageName}/${path}/${file.name}`;
-    console.log(uploadUrl)
+    
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
+    const bufferOriginal = Buffer.from(bytes);
+   
+    const watermarkPath =  _path.resolve(process.cwd(), 'public', 'watermark.png');
+   
+    const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
+    
+    const bufferProcessado = await sharp(bufferOriginal)
+      .composite([{ input: bufferMarcaDaguaGlobal,
+                gravity: 'southeast'}])
+      // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
+      .toBuffer();
+    
     try {
         const uploadResponse = await fetch(`${uploadUrl}`, {
             method: 'PUT',
@@ -196,7 +205,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
                 'Content-Type': 'application/octet-stream',
                 'accept': 'application/json'
             },
-            body: buffer,
+            body: bufferProcessado,
         });
 
         console.log(uploadResponse)

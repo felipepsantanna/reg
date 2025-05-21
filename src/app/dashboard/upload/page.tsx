@@ -206,8 +206,19 @@ export default function DashboardPage() {
         }
     };
 
-    const removeMedia = (id: string) => {
-        setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
+    const removeMedia = async (id: string) => {
+
+        try {
+            const response = await fetch(`/api/upload/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                setMediaItems((prev: MediaItem[]) => prev.filter(item => item.id !== id));
+            }
+        } catch (error) {
+            console.error('Erro ao carregar mídias:', error);
+        }
     };
 
 
@@ -243,7 +254,7 @@ export default function DashboardPage() {
                         <a href="#" aria-current="page" className="inline-block p-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Uploads</a>
                     </li>
                 </ul>
-                
+
                 {/* Upload de mídia */}
                 <div className="bg-white rounded-lg shadow p-6 mb-8">
                     <h2 className="text-2xl font-bold mb-4">Suas Mídias</h2>
