@@ -79,12 +79,23 @@ export async function POST(request: Request) {
 
         // Verificar se o perfil já existe
         const existingProfile = await getUserProfile(userId);
+        
+        
+       
+   
 
         let result;
         if (existingProfile) {
 
+const formattedProfile = {
+            ...existingProfile,
+            local_atendimento: JSON.parse(existingProfile.local_atendimento),
+            atende: JSON.parse(existingProfile.atende),
+            forma_pagamento: JSON.parse(existingProfile.forma_pagamento),
+            redes_sociais: JSON.parse(existingProfile.redes_sociais)
+        };
 
-            const changes = await getUpdatedFields(existingProfile, profileData);
+            const changes = await getUpdatedFields(formattedProfile, profileData);
 
             if (changes && changes.length > 0) {
                 await saveAuditLogs(userId, changes);
@@ -95,7 +106,7 @@ export async function POST(request: Request) {
 
             if (result.affectedRows !== 0) {
                 if (existingProfile.status === 'approved') {
-                    const respExportIframe = await fetch(`/api/admin/exportiframe`, {
+                    const respExportIframe = await fetch(`${process.env.URL_BASE}/api/admin/exportiframe`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
