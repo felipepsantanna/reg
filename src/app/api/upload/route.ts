@@ -190,8 +190,21 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const watermarkPath =  _path.resolve(process.cwd(), 'public', 'watermark.png');
    
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
+
+
+    const imagemProcessadaSharp = await sharp(bufferOriginal)
+      .resize({
+        width: 625,
+        // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
+        fit: sharp.fit.inside, // 'inside' garante que caiba nas dimensões sem cortar, mantendo a proporção.
+                               // Se apenas 'width' é fornecido, 'fit' não é estritamente necessário,
+                               // pois o Sharp ajustará a altura proporcionalmente.
+                               // Usar 'fit: sharp.fit.contain' ou 'fit: sharp.fit.cover' pode ter outros comportamentos.
+        withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
+      })
+      .toBuffer();
     
-    const bufferProcessado = await sharp(bufferOriginal)
+    const bufferProcessado = await sharp(imagemProcessadaSharp)
       .composite([{ input: bufferMarcaDaguaGlobal,
                 gravity: 'southeast'}])
       // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
