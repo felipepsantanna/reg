@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FaCheckCircle, FaTimesCircle  } from 'react-icons/fa';
+import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { AiOutlineExport, AiOutlineEye } from 'react-icons/ai';
 
 interface User {
@@ -138,29 +138,30 @@ export default function AdminPage() {
             if (!response.ok) {
                 throw new Error('Erro ao exportar perfil');
             }
-
-           const iframeCode = `<iframe src="https://cdn.rocktools.com.br/profiles/${userId}.html" width="100%" height="600" frameborder="0"></iframe>`;
-                   const blob = new Blob([iframeCode], { type: 'text/plain' });
-                   const url = URL.createObjectURL(blob);
-                   const a = document.createElement('a');
-                   a.href = url;
-                   a.download = `iframe-${userId}.txt`;
-                   document.body.appendChild(a);
-                   a.click();
-                   document.body.removeChild(a);
-                   URL.revokeObjectURL(url);
+            const item = await response.json();
+            //const iframeCode = `<iframe src="https://cdn.rocktools.com.br/profiles/${userId}.html" width="100%" height="600" frameborder="0"></iframe>`;
+            // const blob = new Blob([iframeCode], { type: 'text/plain' });
+            const blob = new Blob([item.text as string], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `iframe-${userId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } catch (err) {
             setError('Erro ao exportar perfil');
             console.error(err);
         }
     };
 
-     const handleOpen = (userId: number) => {
+    const handleOpen = (userId: number) => {
         router.push(`/admin/alteracoes/${userId}`);
     };
 
     const cadastrosFiltrados = users.filter(cadastro => {
-       
+
         const matchStatus = filtroStatus === 'todos' || cadastro.user_status === filtroStatus;
         const matchNome = (cadastro.nome !== null) ? cadastro.nome.toLowerCase().includes(busca.toLowerCase()) : false;
         const matchBusca = busca === '' ||
@@ -237,13 +238,13 @@ export default function AdminPage() {
                     </div>
 
                     <div className="flex flex-row-reverse pb-4">
-                    <div className="basis-128"> <button
-                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
-                        onClick={() => router.push('/admin/cadastrar')}>
-                        Novo Usuário
-                    </button>
+                        <div className="basis-128"> <button
+                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
+                            onClick={() => router.push('/admin/cadastrar')}>
+                            Novo Usuário
+                        </button>
+                        </div>
                     </div>
-                </div>
 
                 </div>
 
@@ -303,21 +304,21 @@ export default function AdminPage() {
                                         {format(new Date(user.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        
+
                                         {user.user_status === 'ativo' && (
                                             <div className="flex space-x-2">
                                                 <button
                                                     onClick={() => handleExportIframe(user.id)}
                                                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                 >
-                                                   <AiOutlineExport size={20}/>
+                                                    <AiOutlineExport size={20} />
                                                 </button>
                                                 {user.status !== 'approved' && (
                                                     <button
                                                         onClick={() => handleApprove(user.id)}
                                                         className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                         <FaCheckCircle size={20}/>
+                                                        <FaCheckCircle size={20} />
                                                     </button>
                                                 )}
                                                 {user.status !== 'rejected' && (
@@ -325,24 +326,24 @@ export default function AdminPage() {
                                                         onClick={() => handleReject(user.id)}
                                                         className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        <FaTimesCircle size={20}/>
+                                                        <FaTimesCircle size={20} />
                                                     </button>
                                                 )}
-                                                
-                                                {( user.updates !== null && user.updates > 0) && ( 
+
+                                                {(user.updates !== null && user.updates > 0) && (
                                                     <button
                                                         onClick={() => handleOpen(user.id)}
                                                         className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-xs"
                                                     >
-                                                        <AiOutlineEye size={20}/>
-                                                    </button>) }
+                                                        <AiOutlineEye size={20} />
+                                                    </button>)}
                                             </div>
                                         )}
-                                        
+
                                     </td>
                                 </tr>
 
-                                
+
                             ))}
                         </tbody>
                     </table>

@@ -176,7 +176,7 @@ export async function POST(request: Request) {
 
         await s3Client.send(command);
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, text: iframe });
     }
     catch (error) {
         console.error('Erro ao exportar o iframe:', error);
