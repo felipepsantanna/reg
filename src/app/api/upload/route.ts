@@ -28,27 +28,27 @@ export async function POST(request: Request) {
         }
 
         const token = cookies().get('auth_token');
-       
-               if (!token) {
-                   return NextResponse.json(
-                       { message: 'Não autorizado' },
-                       { status: 401 }
-                   );
-               }
-       
-               let userId: number;
-               try {
-                   const { payload } = await jwtVerify(
-                       token.value,
-                       new TextEncoder().encode(JWT_SECRET)
-                   );
-                   userId = payload.userId as number;
-               } catch (error) {
-                   return NextResponse.json(
-                       { message: 'Token inválido' },
-                       { status: 401 }
-                   );
-               } 
+
+        if (!token) {
+            return NextResponse.json(
+                { message: 'Não autorizado' },
+                { status: 401 }
+            );
+        }
+
+        let userId: number;
+        try {
+            const { payload } = await jwtVerify(
+                token.value,
+                new TextEncoder().encode(JWT_SECRET)
+            );
+            userId = payload.userId as number;
+        } catch (error) {
+            return NextResponse.json(
+                { message: 'Token inválido' },
+                { status: 401 }
+            );
+        }
 
         if (isVideo) {
             const videoResp = await uploadToBunnyCDN(file as File, contentType);
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
             const user = await getUserProfile(userId);
             const path = `${stringToSlug(user.sexo)}/${stringToSlug(user.nome)}`;
 
-            
+
             const imageResp = await uploadToBunnyStorage(file as File, path);
             return NextResponse.json(imageResp);
         }
@@ -180,36 +180,56 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const storageHost = process.env.BUNNY_STORAGE_HOST!;
     const storageName = process.env.BUNNY_STORAGE_NAME!;
     const accessKey = process.env.BUNNY_STORAGE_ACCESS!;
-    const pullZoneUrl = "capitalsexy.b-cdn.net"; 
+    const pullZoneUrl = "capitalsexy.b-cdn.net";
 
     const uploadUrl = `${storageHost}/${storageName}/${path}/${file.name}`;
-    
+
     const bytes = await file.arrayBuffer();
     const bufferOriginal = Buffer.from(bytes);
-   
-    const watermarkPath =  _path.resolve(process.cwd(), 'public', 'watermark.png');
-   
+
+    const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
+
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
 
-
+    let resizeOptions = {};
+    const metadata = await sharp(bufferOriginal).metadata();
+    console.log(metadata);
+    if (metadata.height! > metadata.width!) {
+        console.log('height: ' + metadata.height!);
+        resizeOptions = {
+            height: 615,
+            // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
+            fit: sharp.fit.inside, // 'inside' garante que caiba nas dimensões sem cortar, mantendo a proporção.
+            // Se apenas 'width' é fornecido, 'fit' não é estritamente necessário,
+            // pois o Sharp ajustará a altura proporcionalmente.
+            // Usar 'fit: sharp.fit.contain' ou 'fit: sharp.fit.cover' pode ter outros comportamentos.
+            withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
+        };
+    }
+    else {
+        console.log('height: ' + metadata.width!);
+        resizeOptions = {
+            width: 615,
+            // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
+            fit: sharp.fit.inside, // 'inside' garante que caiba nas dimensões sem cortar, mantendo a proporção.
+            // Se apenas 'width' é fornecido, 'fit' não é estritamente necessário,
+            // pois o Sharp ajustará a altura proporcionalmente.
+            // Usar 'fit: sharp.fit.contain' ou 'fit: sharp.fit.cover' pode ter outros comportamentos.
+            withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
+        }
+    };
     const imagemProcessadaSharp = await sharp(bufferOriginal)
-      .resize({
-        width: 625,
-        // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
-        fit: sharp.fit.inside, // 'inside' garante que caiba nas dimensões sem cortar, mantendo a proporção.
-                               // Se apenas 'width' é fornecido, 'fit' não é estritamente necessário,
-                               // pois o Sharp ajustará a altura proporcionalmente.
-                               // Usar 'fit: sharp.fit.contain' ou 'fit: sharp.fit.cover' pode ter outros comportamentos.
-        withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
-      })
-      .toBuffer();
-    
+        .resize(resizeOptions)
+        .toBuffer();
+
     const bufferProcessado = await sharp(imagemProcessadaSharp)
-      .composite([{ input: bufferMarcaDaguaGlobal,
-                gravity: 'southeast'}])
-      // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
-      .toBuffer();
-    
+        .composite([{
+            input: bufferMarcaDaguaGlobal,
+            gravity: 'southeast'
+        }])
+        // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
+        .toBuffer();
+
     try {
         const uploadResponse = await fetch(`${uploadUrl}`, {
             method: 'PUT',
@@ -240,21 +260,21 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     }
 }
 const stringToSlug = (str: string): string => {
-  if (!str) {
-    return '';
-  }
+    if (!str) {
+        return '';
+    }
 
-  // Remove caracteres especiais e acentos, converte para minúsculo
-  const normalizedStr = str
-    .normalize('NFD') // Decompõe caracteres acentuados em base + combining diacritic
-    .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritics
-    .toLowerCase();
+    // Remove caracteres especiais e acentos, converte para minúsculo
+    const normalizedStr = str
+        .normalize('NFD') // Decompõe caracteres acentuados em base + combining diacritic
+        .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritics
+        .toLowerCase();
 
-  // Substitui espaços e outros caracteres indesejados por hífens
-  const slug = normalizedStr
-    .replace(/\s+/g, '-') // Substitui espaços por hífens
-    .replace(/[^\w-]+/g, '') // Remove caracteres não alfanuméricos (exceto hífens)
-    .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
+    // Substitui espaços e outros caracteres indesejados por hífens
+    const slug = normalizedStr
+        .replace(/\s+/g, '-') // Substitui espaços por hífens
+        .replace(/[^\w-]+/g, '') // Remove caracteres não alfanuméricos (exceto hífens)
+        .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
 
-  return slug;
+    return slug;
 }
