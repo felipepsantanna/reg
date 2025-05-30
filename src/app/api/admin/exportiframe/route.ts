@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 interface MediaItem {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
         if (profile.descricao) {
             content += `<div class="section-border">
                      <h5 class="fw-semibold">Descrição</h5>
-                        <p className = "text-gray-600 whitespace-pre-line" > ${profile.descricao} </p>
+                        <p class= "text-gray-600 whitespace-pre-line" > ${profile.descricao} </p>
                             </div>`;
         }
 
@@ -111,25 +111,34 @@ export async function POST(request: Request) {
                 let i = `<div class="d-flex flex-column gap-3">`
                 if (item.type === 'image') {
                     i += `<img
-                                src= ${item.url}
-                                alt=""
-                                className="img-fluid w-100" />`
-                } else {
-                    i += `<iframe
-                                src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
-                                allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                                allowFullScreen ="true"
-                                className = "absolute top-0 left-0 w-full h-full rounded-lg">
-                            </iframe>`
+                            src="${item.url}"
+                            alt=""
+                            class="img-fluid w-100" />`
                 }
                 return i;
-            });
+            }).join('');
 
-
+            content += `<iframe
+                                src="https://capitalsexy.b-cdn.net/feminino/alessandra-joana-heloisa/videos.html"
+                                allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                allowFullScreen ="true"
+                                class= "absolute top-0 left-0 w-full h-full rounded-lg">
+                            </iframe>`
 
             content += `</div>
                                     </div>`
         }
+
+        /*
+        else {
+                    i += `<iframe
+                                src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
+                                allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                allowFullScreen ="true"
+                                class = "absolute top-0 left-0 w-full h-full rounded-lg">
+                            </iframe>`
+                }
+                */
 
         const iframe = `<!DOCTYPE html>
     <html lang="pt-br">
@@ -158,25 +167,9 @@ export async function POST(request: Request) {
     </body>
     </html>`;
 
-        const s3Client = new S3Client({
-            endpoint: process.env.API_S3,
-            region: 'auto',
-            credentials: {
-                accessKeyId: process.env.API_S3_ACCESSKEY!,
-                secretAccessKey: process.env.API_S3_SECRET_KEY!
-            }
-        })
 
-        const command = new PutObjectCommand({
-            Bucket: process.env.BUCKET_NAME,
-            Key: `profiles/${userId}.html`,
-            Body: iframe,
-            ContentType: 'text/html; charset=utf-8'
-        });
 
-        await s3Client.send(command);
-
-        return NextResponse.json({ success: true, text: iframe });
+        return NextResponse.json({ success: true, text: content, iframe: iframe });
     }
     catch (error) {
         console.error('Erro ao exportar o iframe:', error);
