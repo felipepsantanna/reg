@@ -157,6 +157,16 @@ export async function getMediaById(id: number) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
+
+export async function deleteMediaById(id: number) {
+    const [result] = await pool.execute(
+        'DELETE FROM media WHERE id = ?',
+        [id]
+    ) as [any, any];
+
+    return result;
+}
+
 export async function updateMediaPositions(userId: number, mediaPositions: { id: number; position: number }[]) {
     const connection = await pool.getConnection();
     try {
