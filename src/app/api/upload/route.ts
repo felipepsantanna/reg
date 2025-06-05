@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getUserProfile } from '@/lib/db-operations';
-/*import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";*/
+import { stringToSlug } from '@/lib/string-operations';
 import sharp from 'sharp';
 import _path from 'path';
 import fs from 'fs/promises'
@@ -267,23 +267,4 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         console.error('Erro ao fazer upload para Bunny Storage:', err);
         throw err;
     }
-}
-const stringToSlug = (str: string): string => {
-    if (!str) {
-        return '';
-    }
-
-    // Remove caracteres especiais e acentos, converte para minúsculo
-    const normalizedStr = str
-        .normalize('NFD') // Decompõe caracteres acentuados em base + combining diacritic
-        .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritics
-        .toLowerCase();
-
-    // Substitui espaços e outros caracteres indesejados por hífens
-    const slug = normalizedStr
-        .replace(/\s+/g, '-') // Substitui espaços por hífens
-        .replace(/[^\w-]+/g, '') // Remove caracteres não alfanuméricos (exceto hífens)
-        .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
-
-    return slug;
 }
