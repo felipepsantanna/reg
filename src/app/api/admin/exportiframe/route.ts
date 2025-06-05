@@ -122,27 +122,28 @@ export async function POST(request: Request) {
         return i;
       }).join('');
 
-      content += `<iframe
-                                src="https://capitalsexy.b-cdn.net/feminino/alessandra-joana-heloisa/videos.html"
-                                allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                                allowFullScreen ="true"
-                                class= "absolute top-0 left-0 w-full h-full rounded-lg">
-                            </iframe>`
+      //////////////////////////////////////////////////////////////////
+      ////////////     CRIANDO O IFRAMES COM OS VÍDEOS       ///////////
+      //////////////////////////////////////////////////////////////////
 
-    }
-
-    /*
-    else {
-                i += `<iframe
+      let videos = '';
+      videos += medias.data.map((item: MediaItem) => {
+        let i = `<figure class="px-img-dupla">`
+        if (item.type === 'video') {
+          i += `<iframe
                             src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
                             allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                             allowFullScreen ="true"
                             class = "absolute top-0 left-0 w-full h-full rounded-lg">
                         </iframe>`
-            }
-            */
+        }
+        i += `</figure>`;
+        return i;
+      }).join('');;
 
-    const iframe = `<!DOCTYPE html>
+
+
+  const iframe = `<!DOCTYPE html>
     <html lang="pt-br">
     <head>
       <meta charset="UTF-8" />
@@ -162,16 +163,25 @@ export async function POST(request: Request) {
       </style>
     </head>
     <body>
-    
-      <div class="container py-4">${content}</div>
-    
+      <div class="container py-4">${videos}</div>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     </body>
     </html>`;
 
+    const path = `${stringToSlug(profile.sexo)}/${stringToSlug(profile.nome)}/videos.html`;
+    var iframeUrl = await uploadToBunnyStorage(iframe, path);
 
+      if(iframeUrl !== ''){
+        content += `<iframe
+                      src="${iframeUrl}"
+                      allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                      allowFullScreen ="true"
+                      class= "absolute top-0 left-0 w-full h-full rounded-lg">
+                    </iframe>`
+      }
+    }
 
-    return NextResponse.json({ success: true, text: content, iframe: iframe });
+    return NextResponse.json({ success: true, text: content });
   }
   catch (error) {
     console.error('Erro ao exportar o iframe:', error);
@@ -180,6 +190,58 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+//!! o path deve incluir já o nome do arquivo e a extensão !!
+const uploadToBunnyStorage = async (htmlContent: string, path: string): Promise<String> => {
+
+  const storageHost = process.env.BUNNY_STORAGE_HOST!;
+  const storageName = process.env.BUNNY_STORAGE_NAME!;
+  const accessKey = process.env.BUNNY_STORAGE_ACCESS!;
+  const pullZoneUrl = "capitalsexy.b-cdn.net";
+  const uploadUrl = `${storageHost}/${storageName}/${path}`;
+
+  try {
+        const uploadResponse = await fetch(`${uploadUrl}`, {
+            method: 'PUT',
+            headers: {
+                'AccessKey': accessKey,
+                'Content-Type': 'application/octet-stream',
+                'accept': 'application/json'
+            },
+            body: htmlContent,
+        });
+
+        console.log(uploadResponse)
+
+        if (!uploadResponse.ok) {
+            throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
+        }
+        return `https://${pullZoneUrl}/${path}`;
+
+    } catch (err: any) {
+        console.error('Erro ao fazer upload para Bunny Storage:', err);
+        throw err;
+    }
+}
+
+const stringToSlug = (str: string): string => {
+    if (!str) {
+        return '';
+    }
+
+    // Remove caracteres especiais e acentos, converte para minúsculo
+    const normalizedStr = str
+        .normalize('NFD') // Decompõe caracteres acentuados em base + combining diacritic
+        .replace(/[\u0300-\u036f]/g, '') // Remove combining diacritics
+        .toLowerCase();
+
+    // Substitui espaços e outros caracteres indesejados por hífens
+    const slug = normalizedStr
+        .replace(/\s+/g, '-') // Substitui espaços por hífens
+        .replace(/[^\w-]+/g, '') // Remove caracteres não alfanuméricos (exceto hífens)
+        .replace(/^-+|-+$/g, ''); // Remove hífens no início e no final
+
+    return slug;
 }
 
 
