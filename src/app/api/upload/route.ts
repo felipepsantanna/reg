@@ -188,9 +188,9 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const bufferOriginal = Buffer.from(bytes);
 
     const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
-
+    const watermarkAllPath  = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
-
+    const bufferMarcaDaguaCenter = await fs.readFile(watermarkAllPath);
     let resizeOptions = {};
     const metadata = await sharp(bufferOriginal).metadata();
     console.log(metadata);
@@ -230,6 +230,15 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
         .toBuffer();
 
+
+        const buffercentralizado = await sharp(bufferProcessado)
+        .composite([{
+            input: bufferMarcaDaguaCenter,
+            gravity: 'center'
+        }])
+        // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
+        .toBuffer();
+
     try {
         const uploadResponse = await fetch(`${uploadUrl}`, {
             method: 'PUT',
@@ -238,7 +247,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
                 'Content-Type': 'application/octet-stream',
                 'accept': 'application/json'
             },
-            body: bufferProcessado,
+            body: buffercentralizado,
         });
 
         console.log(uploadResponse)
