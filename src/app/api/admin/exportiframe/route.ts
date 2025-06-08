@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 
 
 
-  const iframe = `<!DOCTYPE html>
+      const iframe = `<!DOCTYPE html>
     <html lang="pt-br">
     <head>
       <meta charset="UTF-8" />
@@ -169,10 +169,10 @@ export async function POST(request: Request) {
     </body>
     </html>`;
 
-    const path = `${stringToSlug(profile.sexo)}/${stringToSlug(profile.nome)}/videos.html`;
-    var iframeUrl = await uploadToBunnyStorage(iframe, path);
+      const path = `${await stringToSlug(profile.sexo)}/${await stringToSlug(profile.nome)}/videos.html`;
+      var iframeUrl = await uploadToBunnyStorage(iframe, path);
 
-      if(iframeUrl !== ''){
+      if (iframeUrl !== '') {
         content += `<iframe
                       src="${iframeUrl}"
                       allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
@@ -202,27 +202,27 @@ const uploadToBunnyStorage = async (htmlContent: string, path: string): Promise<
   const uploadUrl = `${storageHost}/${storageName}/${path}`;
 
   try {
-        const uploadResponse = await fetch(`${uploadUrl}`, {
-            method: 'PUT',
-            headers: {
-                'AccessKey': accessKey,
-                'Content-Type': 'application/octet-stream',
-                'accept': 'application/json'
-            },
-            body: htmlContent,
-        });
+    const uploadResponse = await fetch(`${uploadUrl}`, {
+      method: 'PUT',
+      headers: {
+        'AccessKey': accessKey,
+        'Content-Type': 'application/octet-stream',
+        'accept': 'application/json'
+      },
+      body: htmlContent,
+    });
 
-        console.log(uploadResponse)
+    console.log(uploadResponse)
 
-        if (!uploadResponse.ok) {
-            throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
-        }
-        return `https://${pullZoneUrl}/${path}`;
-
-    } catch (err: any) {
-        console.error('Erro ao fazer upload para Bunny Storage:', err);
-        throw err;
+    if (!uploadResponse.ok) {
+      throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
     }
+    return `https://${pullZoneUrl}/${path}`;
+
+  } catch (err: any) {
+    console.error('Erro ao fazer upload para Bunny Storage:', err);
+    throw err;
+  }
 }
 
 

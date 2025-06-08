@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         }
         else {
             const user = await getUserProfile(userId);
-            const path = `${stringToSlug(user.sexo)}/${stringToSlug(user.nome)}`;
+            const path = `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`;
 
 
             const imageResp = await uploadToBunnyStorage(file as File, path);
@@ -133,48 +133,6 @@ const uploadToBunnyCDN = async (file: File, contentType: string): Promise<MediaA
     }
 };
 
-/*const uploadToCloudflare = async (file: File): Promise<MediaApiResponse> => {
-    try {
-
-        const s3Client = new S3Client({
-            endpoint: process.env.API_S3,
-            region: 'auto',
-            credentials: {
-                accessKeyId: process.env.API_S3_ACCESSKEY!,
-                secretAccessKey: process.env.API_S3_SECRET_KEY!
-            }
-        });
-
-        const timestamp = new Date().getTime();
-        const randomString = Math.random().toString(36).substring(7);
-        const fileExtension = file.name.split('.').pop();
-        const fileName = `${timestamp}-${randomString}.${fileExtension}`;
-
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        const command = new PutObjectCommand({
-            Bucket: process.env.BUCKET_NAME,
-            Key: fileName,
-            Body: buffer,
-            ContentType: file.type
-        });
-
-        await s3Client.send(command);
-
-
-        const response = {
-            thumbnail: `https://cdn.rocktools.com.br/${fileName}`,
-            url: `https://cdn.rocktools.com.br/${fileName}`
-        };
-
-        return response;
-    } catch (error) {
-        console.error('Erro ao fazer upload para Cloudflare:', error);
-        throw error;
-    }
-};*/
-
 const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiResponse> => {
     // Dados do Bunny Storage
     const storageHost = process.env.BUNNY_STORAGE_HOST!;
@@ -188,7 +146,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const bufferOriginal = Buffer.from(bytes);
 
     const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
-    const watermarkAllPath  = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
+    const watermarkAllPath = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
     const bufferMarcaDaguaCenter = await fs.readFile(watermarkAllPath);
     let resizeOptions = {};
@@ -218,25 +176,36 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
         }
     };
-    const imagemProcessadaSharp = await sharp(bufferOriginal)
+    console.log('metadata gerada')
+    const bufferComPrimeiraMarca = await sharp(bufferOriginal)
         .resize(resizeOptions)
-        .toBuffer();
-
-    const bufferProcessado = await sharp(imagemProcessadaSharp)
         .composite([{
             input: bufferMarcaDaguaGlobal,
             gravity: 'southeast'
         }])
-        // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
         .toBuffer();
 
+    console.log('Primeira marca d\'água (canto) aplicada.');
 
-        const buffercentralizado = await sharp(bufferProcessado)
+    const metadataProcessado = await sharp(bufferComPrimeiraMarca).metadata();
+    const larguraFinal = metadataProcessado.width;
+    const alturaFinal = metadataProcessado.height;
+
+    const bufferMarcaDaguaCenterRedimensionada = await sharp(bufferMarcaDaguaCenter)
+        .resize({
+            width: larguraFinal,
+            height: alturaFinal,
+            fit: sharp.fit.cover // 'cover' para cobrir a área, 'fill' para esticar
+        })
+        .toBuffer();
+    console.log('Marca d\'água central redimensionada para cobrir a imagem.');
+
+    // Finalmente, compor a segunda marca d'água (redimensionada) sobre o resultado anterior
+    const bufferFinal = await sharp(bufferComPrimeiraMarca)
         .composite([{
-            input: bufferMarcaDaguaCenter,
-            gravity: 'center'
+            input: bufferMarcaDaguaCenterRedimensionada,
+            gravity: 'center' // 'gravity' aqui é opcional, pois as imagens têm o mesmo tamanho
         }])
-        // .toFormat('jpeg', { quality: 80 }) // Exemplo: converter para JPEG com qualidade 80
         .toBuffer();
 
     try {
@@ -247,7 +216,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
                 'Content-Type': 'application/octet-stream',
                 'accept': 'application/json'
             },
-            body: buffercentralizado,
+            body: bufferFinal,
         });
 
         console.log(uploadResponse)
