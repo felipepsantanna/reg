@@ -140,46 +140,46 @@ export async function POST(request: Request) {
         }
         i += `</figure>`;
         return i;
-      }).join('');;
-
-
-
-      const iframe = `<!DOCTYPE html>
-    <html lang="pt-br">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-      <title>Anunciante 01</title>
-      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-      <style>
-        body {
-          color: #FFCC00!important;
-          background-color: transparent !important;
-        }
-        .section-border {
-          border-bottom: 1px solid #dee2e6;
-          padding-bottom: 1rem;
-          margin-bottom: 1rem;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container py-4">${videos}</div>
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-    </html>`;
-
-      const path = `${await stringToSlug(profile.sexo)}/${await stringToSlug(profile.nome)}/videos.html`;
-      var iframeUrl = await uploadToBunnyStorage(iframe, path);
-
-      if (iframeUrl !== '') {
-        content += `<iframe
-                      src="${iframeUrl}"
-                      allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                      allowFullScreen ="true"
-                      class= "absolute top-0 left-0 w-full h-full rounded-lg">
-                    </iframe>`
-      }
+      }).join('');
+      content += videos;
+      /*
+  
+        const iframe = `<!DOCTYPE html>
+      <html lang="pt-br">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Anunciante 01</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+          body {
+            color: #FFCC00!important;
+            background-color: transparent !important;
+          }
+          .section-border {
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container py-4">${videos}</div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+      </body>
+      </html>`;
+  
+        const path = `${await stringToSlug(profile.sexo)}/${await stringToSlug(profile.nome)}/videos.html`;
+        var iframeUrl = await uploadToBunnyStorage(iframe, path);
+  
+        if (iframeUrl !== '') {
+          content += `<iframe
+                        src="${iframeUrl}"
+                        allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                        allowFullScreen ="true"
+                        class= "absolute top-0 left-0 w-full h-full rounded-lg">
+                      </iframe>`
+        }*/
     }
 
     return NextResponse.json({ success: true, text: content });
