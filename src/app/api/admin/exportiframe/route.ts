@@ -3,7 +3,6 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { stringToSlug } from '@/lib/string-operations';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
