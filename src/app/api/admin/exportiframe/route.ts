@@ -192,7 +192,7 @@ export async function POST(request: Request) {
   }
 }
 //!! o path deve incluir já o nome do arquivo e a extensão !!
-const uploadToBunnyStorage = async (htmlContent: string, path: string): Promise<String> => {
+/*const uploadToBunnyStorage = async (htmlContent: string, path: string): Promise<String> => {
 
   const storageHost = process.env.BUNNY_STORAGE_HOST!;
   const storageName = process.env.BUNNY_STORAGE_NAME!;
@@ -222,6 +222,6 @@ const uploadToBunnyStorage = async (htmlContent: string, path: string): Promise<
     console.error('Erro ao fazer upload para Bunny Storage:', err);
     throw err;
   }
-}
+}*/
 
 
