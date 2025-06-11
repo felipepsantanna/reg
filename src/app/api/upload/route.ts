@@ -59,6 +59,12 @@ export async function POST(request: Request) {
             const imageResp = await uploadToBunnyStorage(file as File, path);
             return NextResponse.json(imageResp);
         }
+        else {
+            return NextResponse.json(
+                { error: 'Nenhum arquivo de imagem fornecido' },
+                { status: 400 }
+            );
+        }
         /*else {
             const videoResp = await uploadToBunnyCDN(file as File, contentType);
             return NextResponse.json(videoResp);
