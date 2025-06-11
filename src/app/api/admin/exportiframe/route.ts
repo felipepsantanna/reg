@@ -107,18 +107,19 @@ export async function POST(request: Request) {
     if (medias.data.length > 0) {
       content += `<br />`;
       content += medias.data.map((item: MediaItem) => {
-        let i = `<figure class="px-img-dupla">
-              <a href="${item.url}" title="Acompanhantes em Brasília">`
+        let i = ``
         if (item.type === 'image') {
-          i += `<img
-                            loading="lazy"
-                            src="${item.url}"
-                            alt="${profile.nome}"
-                            alt=""
-                            itemprop="image" />`
+          i += `<figure class="px-img-dupla">
+                    <a href="${item.url}" title="Acompanhantes em Brasília">
+                        <img
+                                      loading="lazy"
+                                      src="${item.url}"
+                                      alt="${profile.nome}"
+                                      alt=""
+                                      itemprop="image" />
+                    </a>
+              </figure>`
         }
-        i += `</a>
-    </figure>`;
         return i;
       }).join('');
 
@@ -128,16 +129,17 @@ export async function POST(request: Request) {
 
       let videos = '';
       videos += medias.data.map((item: MediaItem) => {
-        let i = `<figure class="px-img-dupla">`
+        let i = ``
         if (item.type === 'video') {
-          i += `<iframe
-                            src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
-                            allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                            allowFullScreen ="true"
-                            class = "absolute top-0 left-0 w-full h-full rounded-lg">
-                        </iframe>`
+          i += `<figure class="px-img-dupla">
+                    <iframe
+                      src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
+                      allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                      allowFullScreen ="true"
+                      class = "absolute top-0 left-0 w-full h-full rounded-lg">
+                    </iframe>
+                </figure>`
         }
-        i += `</figure>`;
         return i;
       }).join('');
       content += videos;
