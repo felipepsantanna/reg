@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd';
 import StrictModeDroppable from '../StrictModeDroppable';
 import { useRouter } from 'next/navigation';
+import { uploadToBunnyCDN } from '@/lib/uploadBunny';
 
 interface ProcessingFile {
     id: string;
@@ -105,20 +106,25 @@ export default function DashboardPage() {
 
             try {
 
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('fileType', file.type);
+                let objectMediaUpload: MediaUploadResponse;
+                if (isImage) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('fileType', file.type);
 
-                const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
 
-                if (!uploadResponse.ok) {
-                    throw new Error('Erro ao salvar mídia no banco de dados');
+                    if (!uploadResponse.ok) {
+                        throw new Error('Erro ao salvar mídia no banco de dados');
+                    }
+                    objectMediaUpload = await uploadResponse.json() as MediaUploadResponse;
                 }
-                const objectMediaUpload = await uploadResponse.json() as MediaUploadResponse;
-
+                else {
+                    objectMediaUpload = await uploadToBunnyCDN(file, file.type);
+                }
                 // Salvar mídia no banco de dados
                 const response = await fetch('/api/user/media', {
                     method: 'POST',
