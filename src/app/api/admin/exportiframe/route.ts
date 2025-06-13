@@ -46,14 +46,18 @@ export async function POST(request: Request) {
 
 
     /*Header*/
-    let content = ` <div class="section-border">
-          <h1 class="fw-bold">${profile.nome}</h1>
+    let content = ` <div class="px-item-info">
+                    <h1>
+                        <span class="px-item-jobTitle" itemprop="jobTitle">Acompanhante</span>
+                        <span class="px-item-nome" itemprop="name">${profile.nome}</span>                 
+                    </h1>
+
           <small class="fst-italic text-warning opacity-75">Última atualização: ${format(new Date(profile.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</small>
         </div>`;
 
 
     /*Informações Básicas + Contato*/
-    content += `<div class="row section-border">
+    content += `<div class="px-item-desc" itemprop="description">
           <div class="col-md-6">
             <h5 class="fw-semibold">Informações Básicas</h5>
             <ul class="list-unstyled small">
@@ -70,7 +74,11 @@ export async function POST(request: Request) {
           </div>
           <div class="col-md-6">
             <h5 class="fw-semibold">Contato</h5>
-            <p class="small"><strong>Telefone:</strong>${profile.telefone}</p>
+            <p class="px-item-whatsapp-notexto">
+        <a href="https://api.whatsapp.com/send?phone=55${profile.telefone}&amp;text=Ol%C3%A1%20Gabi+Duarte,%20tudo%20bem?%20Vi%20seu%20perfil%20e%20contato%20no%20site%20CapitalSexy!%0D%0A%0D%0APodemos%20conversar?" target="_blank" style="color:#ccc" id="px-whatsapp-link" data-ga-type="whatsapp"><span class="px-item-whatsapp-notexto-icon"> </span>
+            Enviar mensagem pelo WhatsApp Web!
+        </a>
+    </p>
           </div>
         </div>`;
 
@@ -80,7 +88,7 @@ export async function POST(request: Request) {
               <ul class="list-unstyled small">`;
 
     if (profile.localAtendimento) {
-      content += `<li><strong>Locais de Atendimento:</strong> ${profile.localAtendimento}</li>`;
+      content += `<li class="px-item-localhorario"><span class="px-item-localhorario-icon"> </span><strong>Locais de Atendimento:</strong> ${profile.localAtendimento}</li>`;
     }
     if (profile.atende) {
       content += `<li><strong>Atende:</strong> ${profile.atende.replace("[\"", '').replace("\"]", '')}</li>`;
@@ -107,7 +115,7 @@ export async function POST(request: Request) {
     if (medias.data.length > 0) {
       content += `<br />`;
       content += medias.data.map((item: MediaItem) => {
-        let i = ``
+        let i = `<div class="px-item-imglista">`
         if (item.type === 'image') {
           i += `<figure class="px-img-dupla">
                     <a href="${item.url}" title="Acompanhantes em Brasília">
@@ -120,6 +128,7 @@ export async function POST(request: Request) {
                     </a>
               </figure>`
         }
+        i = `</div>`
         return i;
       }).join('');
 
@@ -129,17 +138,22 @@ export async function POST(request: Request) {
 
       let videos = '';
       videos += medias.data.map((item: MediaItem) => {
-        let i = ``
+        let i = `<div class="px-item-extrahtml">
+        <style type="text/css">
+.px-item-extrahtml {
+    text-align: initial;
+}
+</style>`
         if (item.type === 'video') {
-          i += `<figure class="px-img-dupla">
-                    <iframe
-                      src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&loop=false&muted=false&preload=false&responsive=true"
-                      allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                      allowFullScreen ="true"
-                      class = "absolute top-0 left-0 w-full h-full rounded-lg">
+          i += `<br /><div style="position:relative;padding-top:100%;">
+                    <iframe src="https://iframe.mediadelivery.net/embed/113933/${item.url}?autoplay=true&amp;loop=false&amp;muted=false&amp;preload=false&amp;responsive=true" 
+                      loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%;" 
+                      allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
+                      allowfullscreen="true">
                     </iframe>
-                </figure>`
+                </div>`
         }
+        i = `</div><br /><br />`
         return i;
       }).join('');
       content += videos;
