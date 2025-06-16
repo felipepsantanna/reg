@@ -118,8 +118,7 @@ export async function POST(request: Request) {
 
 
     if (profile.redes_sociais) {
-      let redes: RedeSocial[] = [];
-      redes = JSON.parse(profile.redes_sociais) as RedeSocial[];
+
       content += `<div class="section-border">
                      <h5 class="fw-semibold">Redes sociais</h5>
                      <ul>`
@@ -167,26 +166,30 @@ export async function POST(request: Request) {
       ////////////     CRIANDO O IFRAMES COM OS VÍDEOS       ///////////
       //////////////////////////////////////////////////////////////////
 
+      const temVideo = medias.data.some((midia: MediaItem) => midia.type === 'video');
       let videos = '';
-      videos += medias.data.map((item: MediaItem) => {
-        let i = `<div class="px-item-extrahtml">
-        <style type="text/css">
+
+      if (temVideo) {
+        videos = `<style type="text/css">
 .px-item-extrahtml {
     text-align: initial;
 }
-</style>`
-        if (item.type === 'video') {
-          i += `<br /><div style="position:relative;padding-top:100%;">
+</style>`;
+        videos += '<h5 class="fw-semibold">Galeria de vídeos</h5>'
+        videos += medias.data.map((item: MediaItem) => {
+          if (item.type === 'video') {
+            return `<div class="px-item-extrahtml">
+          <div style="position:relative;padding-top:100%;">
                     <iframe src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&amp;loop=false&amp;muted=false&amp;preload=false&amp;responsive=true" 
                       loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                       allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
                       allowfullscreen="true">
                     </iframe>
-                </div>`
-        }
-        i += `</div><br /><br />`
-        return i;
-      }).join('');
+                </div>
+                </div><br />`
+          } else { return '' }
+        }).join('');
+      }
       content += videos;
       /*
   
