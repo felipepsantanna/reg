@@ -135,6 +135,23 @@ export async function updateUserProfile(userId: number, profileData: {
 
     return result;
 }
+export async function updateUserProfilesUpdatedAt(userId: number) {
+    await pool.execute(
+        'UPDATE user_profiles SET updated_at = current_timestamp WHERE user_id = ?',
+        [
+            userId
+        ]
+    ) as [ResultSetHeader, any];
+
+    await pool.execute(
+        'UPDATE users SET updated_at = current_timestamp WHERE id= ?',
+        [
+            userId
+        ]
+    ) as [ResultSetHeader, any];
+
+    return;
+}
 // Funções para mídias
 export async function saveMedia(userId: number, type: 'image' | 'video', thumbnail: string, url: string, position: number) {
     const [result] = await pool.execute(

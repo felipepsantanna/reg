@@ -14,6 +14,12 @@ interface MediaItem {
   position: number;
   poster?: string;
 }
+
+type RedeSocial = {
+  tipo: string;
+  url: string;
+};
+
 export async function POST(request: Request) {
 
   try {
@@ -75,7 +81,8 @@ export async function POST(request: Request) {
           <div class="col-md-6">
             <h5 class="fw-semibold">Contato</h5>
             <p class="px-item-whatsapp-notexto">
-        <a href="https://api.whatsapp.com/send?phone=55${profile.telefone}&amp;text=Ol%C3%A1%20Gabi+Duarte,%20tudo%20bem?%20Vi%20seu%20perfil%20e%20contato%20no%20site%20CapitalSexy!%0D%0A%0D%0APodemos%20conversar?" target="_blank" style="color:#ccc" id="px-whatsapp-link" data-ga-type="whatsapp"><span class="px-item-whatsapp-notexto-icon"> </span>
+        <a href="https://api.whatsapp.com/send?phone=55${profile.telefone}&amp;text=Ol%C3%A1%20Gabi+Duarte,%20tudo%20bem?%20Vi%20seu%20perfil%20e%20contato%20no%20site%20CapitalSexy!%0D%0A%0D%0APodemos%20conversar?" target="_blank" style="color:#ccc" id="px-whatsapp-link" data-ga-type="whatsapp">
+        <span class="px-item-whatsapp-notexto-icon"> </span>
             Enviar mensagem pelo WhatsApp Web!
         </a>
     </p>
@@ -87,15 +94,15 @@ export async function POST(request: Request) {
               <h5 class="fw-semibold">Locais e Serviços</h5>
               <ul class="list-unstyled small">`;
 
-    if (profile.localAtendimento) {
-      content += `<li class="px-item-localhorario"><span class="px-item-localhorario-icon"> </span><strong>Locais de Atendimento:</strong> ${profile.localAtendimento}</li>`;
+    if (profile.local_atendimento) {
+      content += `<li class="px-item-localhorario"><span class="px-item-localhorario-icon"> </span><strong>Locais de Atendimento:</strong> ${JSON.parse(profile.local_atendimento).join(', ')}</li>`;
     }
     if (profile.atende) {
-      content += `<li><strong>Atende:</strong> ${profile.atende.replace("[\"", '').replace("\"]", '')}</li>`;
+      content += `<li><strong>Atende:</strong> ${JSON.parse(profile.atende).join(', ')}</li>`;
     }
 
-    if (profile.formaPagamento) {
-      content += `<li><strong>Formas de Pagamento:</strong> ${profile.formaPagamento}</li>`;
+    if (profile.forma_pagamento) {
+      content += `<li><strong>Formas de Pagamento:</strong> ${JSON.parse(profile.forma_pagamento).join(', ')}</li>`;
     }
 
     content += `</ul>
@@ -108,6 +115,30 @@ export async function POST(request: Request) {
                         <p class= "text-gray-600 whitespace-pre-line" > ${profile.descricao} </p>
                             </div>`;
     }
+
+
+    if (profile.redes_sociais) {
+      let redes: RedeSocial[] = [];
+      redes = JSON.parse(profile.redes_sociais) as RedeSocial[];
+      content += `<div class="section-border">
+                     <h5 class="fw-semibold">Redes sociais</h5>
+                     <ul>`
+
+
+      {
+        content += JSON.parse(profile.redes_sociais).map((rede: RedeSocial, index: number) => {
+          return `<li key=${index}>
+                  <a href=${rede.url} target = "_blank" rel = "noopener noreferrer">
+                  ${rede.tipo}
+                   </a>
+        </li>`
+
+        }
+        )
+      }
+      content += `</ul> </div>`;
+    }
+
 
 
 
@@ -128,7 +159,7 @@ export async function POST(request: Request) {
                     </a>
               </figure>`
         }
-        i = `</div>`
+        i += `</div>`
         return i;
       }).join('');
 
@@ -146,14 +177,14 @@ export async function POST(request: Request) {
 </style>`
         if (item.type === 'video') {
           i += `<br /><div style="position:relative;padding-top:100%;">
-                    <iframe src="https://iframe.mediadelivery.net/embed/113933/${item.url}?autoplay=true&amp;loop=false&amp;muted=false&amp;preload=false&amp;responsive=true" 
+                    <iframe src="https://iframe.mediadelivery.net/embed/299184/${item.url}?autoplay=true&amp;loop=false&amp;muted=false&amp;preload=false&amp;responsive=true" 
                       loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                       allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
                       allowfullscreen="true">
                     </iframe>
                 </div>`
         }
-        i = `</div><br /><br />`
+        i += `</div><br /><br />`
         return i;
       }).join('');
       content += videos;

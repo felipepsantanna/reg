@@ -41,6 +41,7 @@ export async function POST(request: Request) {
 
         const result = await saveMedia(userId, type, thumbnail, url, position);
 
+
         const data = await getMediaById(result.insertId)
 
         return NextResponse.json({ success: true, data: data });
