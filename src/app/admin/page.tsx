@@ -161,13 +161,12 @@ export default function AdminPage() {
     };
 
     const cadastrosFiltrados = users.filter(cadastro => {
-
         const matchStatus = filtroStatus === 'todos' || cadastro.user_status === filtroStatus;
         const matchNome = (cadastro.nome !== null) ? cadastro.nome.toLowerCase().includes(busca.toLowerCase()) : false;
         const matchBusca = busca === '' ||
             matchNome ||
             cadastro.email.toLowerCase().includes(busca.toLowerCase()) ||
-            cadastro.telefone.includes(busca);
+            (cadastro.telefone !== null && cadastro.telefone.includes(busca));
 
         return matchStatus && matchBusca;
     });
