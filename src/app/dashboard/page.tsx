@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 
 export interface MediaUploadResponse {
     thumbnail: string;
@@ -47,7 +48,7 @@ export default function DashboardPage() {
 
     const router = useRouter();
 
-        useEffect(() => {
+    useEffect(() => {
         // Carregar dados do perfil se existirem
         const fetchProfile = async () => {
             try {
@@ -185,267 +186,272 @@ export default function DashboardPage() {
 
                 {/* Formulário de cadastro */}
                 <div className="mb-8">
-                     <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Dados de Cadastro</h2>
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <h2 className="text-2xl font-bold mb-6">Dados de Cadastro</h2>
 
-            {error && (
-                <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
-                    {error}
-                </div>
-            )}
+                        {error && (
+                            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
+                                {error}
+                            </div>
+                        )}
 
-            {success && (
-                <div className="mb-4 p-4 bg-green-100 text-green-700 rounded">
-                    {success}
-                </div>
-            )}
+                        {success && (
+                            <div className="mb-4 p-4 bg-green-100 text-green-700 rounded">
+                                {success}
+                            </div>
+                        )}
 
-            <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
-                            Nome Completo
-                        </label>
-                        <input
-                            type="text"
-                            id="nome"
-                            name="nome"
-                            value={formData.nome}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
+                        <form onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Nome Completo
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="nome"
+                                        name="nome"
+                                        value={formData.nome}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
 
-                    <div>
-                        <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">
-                            Telefone
-                        </label>
-                        <input
-                            type="tel"
-                            id="telefone"
-                            name="telefone"
-                            value={formData.telefone}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                </div>
+                                <div>
+                                    <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Telefone
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        id="telefone"
+                                        name="telefone"
+                                        value={formData.telefone}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label htmlFor="sexo" className="block text-sm font-medium text-gray-700 mb-1">
-                            Sexo
-                        </label>
-                        <select
-                            id="sexo"
-                            name="sexo"
-                            value={formData.sexo}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="">Selecione</option>
-                            <option value="feminino">Feminino</option>
-                            <option value="masculino">Masculino</option>
-                            <option value="trans">Trans</option>
-                        </select>
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label htmlFor="sexo" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Sexo
+                                    </label>
+                                    <select
+                                        id="sexo"
+                                        name="sexo"
+                                        value={formData.sexo}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Selecione</option>
+                                        <option value="feminino">Feminino</option>
+                                        <option value="masculino">Masculino</option>
+                                        <option value="trans">Trans</option>
+                                    </select>
+                                </div>
 
-                    <div>
-                        <label htmlFor="idade" className="block text-sm font-medium text-gray-700 mb-1">
-                            Idade
-                        </label>
-                        <input
-                            type="number"
-                            id="idade"
-                            name="idade"
-                            value={formData.idade}
-                            onChange={handleChange}
-                            required
-                            min="18"
-                            max="99"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
+                                <div>
+                                    <label htmlFor="idade" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Idade
+                                    </label>
+                                    <input
+                                        type="number"
+                                        id="idade"
+                                        name="idade"
+                                        value={formData.idade}
+                                        onChange={handleChange}
+                                        required
+                                        min="18"
+                                        max="99"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
 
-                    {formData.sexo === 'trans' && (
-                        <div>
-                            <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
-                                Tamanho do Dote <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="tamanho_dote"
-                                name="tamanho_dote"
-                                value={formData.tamanho_dote}
-                                onChange={handleChange}
-                                required
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                    )}
-                </div>
+                                {formData.sexo === 'trans' && (
+                                    <div>
+                                        <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Tamanho do Dote <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="tamanho_dote"
+                                            name="tamanho_dote"
+                                            value={formData.tamanho_dote}
+                                            onChange={handleChange}
+                                            required
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                )}
+                            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label htmlFor="altura" className="block text-sm font-medium text-gray-700 mb-1">
-                            Altura
-                        </label>
-                        <input
-                            type="text"
-                            id="altura"
-                            name="altura"
-                            value={formData.altura}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label htmlFor="altura" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Altura
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="altura"
+                                        name="altura"
+                                        value={formData.altura}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
 
-                    <div>
-                        <label htmlFor="peso" className="block text-sm font-medium text-gray-700 mb-1">
-                            Peso
-                        </label>
-                        <input
-                            type="text"
-                            id="peso"
-                            name="peso"
-                            value={formData.peso}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                </div>
+                                <div>
+                                    <label htmlFor="peso" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Peso
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="peso"
+                                        name="peso"
+                                        value={formData.peso}
+                                        onChange={handleChange}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
 
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Local de Atendimento
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {['motel', 'hotel', 'local próprio', 'residência'].map(local => (
-                            <label key={local} className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.local_atendimento.includes(local)}
-                                    onChange={(e) => handleArrayChange('local_atendimento', local, e.target.checked)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Local de Atendimento
+                                </label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {['motel', 'hotel', 'local próprio', 'residência'].map(local => (
+                                        <label key={local} className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.local_atendimento.includes(local)}
+                                                onChange={(e) => handleArrayChange('local_atendimento', local, e.target.checked)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>{local}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Atende
+                                </label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    {['homens', 'mulheres', 'casais'].map(tipo => (
+                                        <label key={tipo} className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.atende.includes(tipo)}
+                                                onChange={(e) => handleArrayChange('atende', tipo, e.target.checked)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>{tipo}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Forma de Pagamento
+                                </label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {['Dinheiro', 'PIX', 'Cartão', 'Transferência'].map(forma => (
+                                        <label key={forma} className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.forma_pagamento.includes(forma)}
+                                                onChange={(e) => handleArrayChange('forma_pagamento', forma, e.target.checked)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>{forma}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Redes Sociais
+                                </label>
+                                {formData.redes_sociais.map((rede, index) => (
+                                    <div key={index} className="flex gap-2 mb-2">
+                                        <select
+                                            value={rede.tipo}
+                                            onChange={(e) => handleRedeSocialChange(index, 'tipo', e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="">Selecione</option>
+                                            <option value="instagram">Instagram</option>
+                                            <option value="twitter">Twitter</option>
+                                            <option value="facebook">Facebook</option>
+                                            <option value="tiktok">TikTok</option>
+                                            <option value="privacy">Privacy</option>
+                                            <option value="onlyfans">OnlyFans</option>
+                                        </select>
+                                        <input
+                                            type="url"
+                                            value={rede.url}
+                                            onChange={(e) => handleRedeSocialChange(index, 'url', e.target.value)}
+                                            placeholder="URL"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeRedeSocial(index)}
+                                            className="px-3 py-2 text-red-600 hover:text-red-800"
+                                        >
+                                            Remover
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={addRedeSocial}
+                                    className="mt-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    + Adicionar Rede Social
+                                </button>
+                            </div>
+
+                            <div className="mb-6">
+                                <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Descrição
+                                </label>
+                                <textarea
+                                    id="descricao"
+                                    name="descricao"
+                                    value={formData.descricao}
+                                    onChange={handleChange}
+                                    rows={4}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
-                                <span>{local}</span>
-                            </label>
-                        ))}
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {loading ? 'Salvando...' : 'Salvar Dados'}
+                                </button>
+                            </div>
+                        </form>
+
+                        <RegistrationSuccess
+                            userName={formData.nome}
+                        />
+
                     </div>
-                </div>
-
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Atende
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {['homens', 'mulheres', 'casais'].map(tipo => (
-                            <label key={tipo} className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.atende.includes(tipo)}
-                                    onChange={(e) => handleArrayChange('atende', tipo, e.target.checked)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span>{tipo}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Forma de Pagamento
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {['Dinheiro', 'PIX', 'Cartão', 'Transferência'].map(forma => (
-                            <label key={forma} className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.forma_pagamento.includes(forma)}
-                                    onChange={(e) => handleArrayChange('forma_pagamento', forma, e.target.checked)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span>{forma}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Redes Sociais
-                    </label>
-                    {formData.redes_sociais.map((rede, index) => (
-                        <div key={index} className="flex gap-2 mb-2">
-                            <select
-                                value={rede.tipo}
-                                onChange={(e) => handleRedeSocialChange(index, 'tipo', e.target.value)}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">Selecione</option>
-                                <option value="instagram">Instagram</option>
-                                <option value="twitter">Twitter</option>
-                                <option value="facebook">Facebook</option>
-                                <option value="tiktok">TikTok</option>
-                                <option value="privacy">Privacy</option>
-                                <option value="onlyfans">OnlyFans</option>
-                            </select>
-                            <input
-                                type="url"
-                                value={rede.url}
-                                onChange={(e) => handleRedeSocialChange(index, 'url', e.target.value)}
-                                placeholder="URL"
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => removeRedeSocial(index)}
-                                className="px-3 py-2 text-red-600 hover:text-red-800"
-                            >
-                                Remover
-                            </button>
-                        </div>
-                    ))}
-                    <button
-                        type="button"
-                        onClick={addRedeSocial}
-                        className="mt-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-                    >
-                        + Adicionar Rede Social
-                    </button>
-                </div>
-
-                <div className="mb-6">
-                    <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">
-                        Descrição
-                    </label>
-                    <textarea
-                        id="descricao"
-                        name="descricao"
-                        value={formData.descricao}
-                        onChange={handleChange}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-
-                <div className="flex justify-end">
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                        {loading ? 'Salvando...' : 'Salvar Dados'}
-                    </button>
-                </div>
-            </form>
-        </div>
                 </div>
 
             </div>
