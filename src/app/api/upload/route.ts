@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        const contentType = formData.get('fileType') as string;
+        const contentType = file.type || "";
         const isVideo = contentType.startsWith('video/');
 
         if (!file) {

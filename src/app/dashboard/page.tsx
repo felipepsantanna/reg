@@ -1,4 +1,3 @@
-// src/app/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { VideosTab } from '@/components/dashboard/VideosTab';
 import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
-import { FaSignOutAlt, FaUser, FaCamera, FaVideo } from 'react-icons/fa';
+import { FaSignOutAlt, FaUser, FaCamera, FaVideo, FaGem } from 'react-icons/fa';
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -21,6 +20,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [saveLoading, setSaveLoading] = useState(false);
 
+    // Carregamento de dados original mantido
     useEffect(() => {
         async function fetchDashboardData() {
             try {
@@ -65,7 +65,9 @@ export default function DashboardPage() {
                 body: JSON.stringify({
                     nome: userData.nome,
                     idade: userData.idade,
-                    sexo: userData.sexo
+                    sexo: userData.sexo,
+                    telefone: userData.telefone,
+                    descricao: userData.descricao
                 }),
             });
             alert('Perfil atualizado!');
@@ -76,59 +78,65 @@ export default function DashboardPage() {
 
     if (loading) return (
         <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
-            <div className="text-indigo-600 font-bold animate-pulse">Carregando painel...</div>
+            <div className="text-indigo-600 font-bold animate-pulse text-xl">Carregando painel...</div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row">
+        <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
 
-            {/* Sidebar / Header */}
-            <aside className="w-full lg:w-72 bg-white border-b lg:border-b-0 lg:border-r p-4 lg:p-6 flex flex-row lg:flex-col items-center lg:items-stretch justify-between lg:justify-start gap-4 shadow-sm z-10">
+            {/* HEADER FIXO NO TOPO */}
+            <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-gray-100 z-50 px-4 md:px-8 shadow-sm">
+                <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-4">
 
-                {/* Logo - Largura fixa no mobile para não empurrar as abas */}
-                <div className="lg:mb-10 lg:px-4 shrink-0 w-auto lg:w-full">
-                    <h1 className="text-base lg:text-xl font-black text-gray-800 tracking-tighter uppercase leading-none">
-                        Capital <span className="text-indigo-600 lg:block">Sexy</span>
-                    </h1>
+                    {/* Logo */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                            <FaGem size={18} />
+                        </div>
+                        <h1 className="text-lg font-black text-gray-800 tracking-tighter uppercase leading-none hidden sm:block">
+                            Capital <span className="text-indigo-600">Sexy</span>
+                        </h1>
+                    </div>
+
+                    {/* Menu de Abas Horizontal */}
+                    <nav className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl overflow-x-auto no-scrollbar">
+                        <TabButton
+                            label="Perfil"
+                            icon={<FaUser size={14} />}
+                            active={activeTab === 'profile'}
+                            onClick={() => setActiveTab('profile')}
+                        />
+                        <TabButton
+                            label="Fotos"
+                            icon={<FaCamera size={14} />}
+                            active={activeTab === 'photos'}
+                            onClick={() => setActiveTab('photos')}
+                        />
+                        <TabButton
+                            label="Vídeos"
+                            icon={<FaVideo size={14} />}
+                            active={activeTab === 'videos'}
+                            onClick={() => setActiveTab('videos')}
+                        />
+                    </nav>
+
+                    {/* Logout */}
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-500 font-bold text-sm transition-all shrink-0"
+                    >
+                        <FaSignOutAlt />
+                        <span className="hidden md:inline">Sair</span>
+                    </button>
                 </div>
+            </header>
 
-                {/* Menu de Abas - Centralizado e Flexível */}
-                <nav className="flex flex-row lg:flex-col gap-1 lg:gap-2 flex-1 justify-center lg:justify-start overflow-x-auto no-scrollbar px-2">
-                    <TabButton
-                        label="Perfil"
-                        icon={<FaUser size={14} />}
-                        active={activeTab === 'profile'}
-                        onClick={() => setActiveTab('profile')}
-                    />
-                    <TabButton
-                        label="Fotos"
-                        icon={<FaCamera size={14} />}
-                        active={activeTab === 'photos'}
-                        onClick={() => setActiveTab('photos')}
-                    />
-                    <TabButton
-                        label="Vídeos"
-                        icon={<FaVideo size={14} />}
-                        active={activeTab === 'videos'}
-                        onClick={() => setActiveTab('videos')}
-                    />
-                </nav>
+            {/* CONTEÚDO PRINCIPAL (Padding Top para compensar o Header Fixo) */}
+            <main className="flex-1 pt-24 pb-12 px-4 md:px-8">
+                <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                {/* Logout - Alinhado à direita no mobile */}
-                <button
-                    onClick={handleLogout}
-                    className="shrink-0 flex items-center gap-2 p-2 lg:p-4 text-gray-400 hover:text-red-500 font-bold rounded-xl transition-all lg:mt-auto"
-                >
-                    <FaSignOutAlt className="text-lg" />
-                    <span className="hidden sm:inline lg:inline">Sair</span>
-                </button>
-            </aside>
-
-            {/* Conteúdo Principal */}
-            <main className="flex-1 p-4 lg:p-10 overflow-y-auto">
-                <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-
+                    {/* Lado Esquerdo: Abas Ativas */}
                     <div className="lg:col-span-2 space-y-6">
                         {activeTab === 'profile' && (
                             <ProfileTab
@@ -148,28 +156,34 @@ export default function DashboardPage() {
                         )}
                     </div>
 
+                    {/* Lado Direito: Widget de Sucesso (Sticky) */}
                     <aside className="lg:col-span-1">
-                        <div className="sticky top-10">
+                        <div className="sticky top-24">
                             <RegistrationSuccess userName={userData.nome || 'Anunciante'} />
                         </div>
                     </aside>
+
                 </div>
             </main>
         </div>
     );
 }
 
+// Botão de Aba Estilizado para o Topo
 function TabButton({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: any }) {
     return (
         <button
             onClick={onClick}
-            className={`flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2 lg:p-4 rounded-xl lg:rounded-2xl font-bold transition-all whitespace-nowrap ${active
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
-                : 'text-gray-400 hover:bg-gray-50'
-                }`}
+            className={`
+                flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all text-sm whitespace-nowrap
+                ${active
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                }
+            `}
         >
-            <span className="shrink-0">{icon}</span>
-            <span className="text-xs lg:text-base">{label}</span>
+            <span className={active ? 'text-indigo-600' : 'text-gray-400'}>{icon}</span>
+            <span>{label}</span>
         </button>
     );
 }
