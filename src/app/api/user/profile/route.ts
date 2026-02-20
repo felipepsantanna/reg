@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { saveUserProfile, getUserProfile, updateUserProfile, saveAuditLogs } from '@/lib/db-operations';
@@ -6,17 +6,13 @@ import { getUpdatedFields } from '@/lib/getUpdatedFields';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const cookieStore = await cookies();
-
         const token = cookieStore.get('auth_token');
 
         if (!token) {
-            return NextResponse.json(
-                { message: 'Não autorizado' },
-                { status: 401 }
-            );
+            return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
         }
 
         let userId: number;
@@ -27,16 +23,12 @@ export async function POST(request: Request) {
             );
             userId = payload.userId as number;
         } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
+            return NextResponse.json({ message: 'Token inválido' }, { status: 401 });
         }
 
         const profileData = await request.json();
-
-        // Validar campos obrigatórios
-        const requiredFields = ['nome', 'telefone', 'sexo', 'idade', 'altura', 'peso'];
+        // 1. Validar novos campos obrigatórios simplificados
+        const requiredFields = ['nome', 'sexo', 'idade'];
         for (const field of requiredFields) {
             if (!profileData[field]) {
                 return NextResponse.json(
@@ -46,83 +38,44 @@ export async function POST(request: Request) {
             }
         }
 
-        // Validar campo dote apenas quando o sexo for "trans"
-        if (profileData.sexo === 'trans' && !profileData.tamanho_dote) {
-            return NextResponse.json(
-                { message: 'O campo Tamanho do Dote é obrigatório para pessoas trans' },
-                { status: 400 }
-            );
-        }
-
-        // Validar arrays
-        if (!Array.isArray(profileData.local_atendimento) || !Array.isArray(profileData.atende) || !Array.isArray(profileData.forma_pagamento)) {
-            return NextResponse.json(
-                { message: 'Campos de arrays inválidos' },
-                { status: 400 }
-            );
-        }
-
-        // Validar redes sociais
-        if (!Array.isArray(profileData.redes_sociais)) {
-            return NextResponse.json(
-                { message: 'Campo redes_sociais inválido' },
-                { status: 400 }
-            );
-        }
-
-        for (const rede of profileData.redes_sociais) {
-            if (!rede.tipo || !rede.url) {
-                return NextResponse.json(
-                    { message: 'Dados de rede social inválidos' },
-                    { status: 400 }
-                );
-            }
-        }
-
-        // Verificar se o perfil já existe
+        // 2. Verificar se o perfil já existe
         const existingProfile = await getUserProfile(userId);
-
-
-
-
 
         let result;
         if (existingProfile) {
-
-            const formattedProfile = {
-                ...existingProfile,
-                local_atendimento: JSON.parse(existingProfile.local_atendimento),
-                atende: JSON.parse(existingProfile.atende),
-                forma_pagamento: JSON.parse(existingProfile.forma_pagamento),
-                redes_sociais: JSON.parse(existingProfile.redes_sociais)
-            };
-
-            const changes = await getUpdatedFields(formattedProfile, profileData);
-
+            // Log de auditoria (opcional, mas recomendado manter)
+            const changes = await getUpdatedFields(existingProfile, profileData);
             if (changes && changes.length > 0) {
                 await saveAuditLogs(userId, changes);
             }
 
             // Atualizar perfil existente
-            result = await updateUserProfile(userId, profileData);
+            result = await updateUserProfile(userId, {
+                nome: profileData.nome,
+                sexo: profileData.sexo,
+                idade: profileData.idade
+            });
 
-            if (result.affectedRows !== 0) {
-                if (existingProfile.status === 'approved') {
-                    const respExportIframe = await fetch(`${process.env.URL_BASE}/api/admin/exportiframe`, {
+            // Se o perfil já estiver aprovado, avisamos o sistema de exportação (opcional)
+            if (existingProfile.status === 'approved') {
+                try {
+                    await fetch(`${process.env.URL_BASE}/api/admin/exportiframe`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ userId: userId })
                     });
-                    console.log(respExportIframe);
+                } catch (e) {
+                    console.error("Erro ao exportar iframe pós-update:", e);
                 }
-
             }
-
         } else {
             // Criar novo perfil
-            result = await saveUserProfile(userId, profileData);
+            result = await saveUserProfile(userId, {
+                nome: profileData.nome,
+                sexo: profileData.sexo,
+                idade: profileData.idade,
+                status: 'pending' // Novo perfil nasce pendente
+            });
         }
 
         return NextResponse.json({ success: true, data: result });
@@ -135,16 +88,13 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET(/*request: Request*/) {
+export async function GET(_request: NextRequest) {
     try {
-        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+        const cookieStore = await cookies();
         const token = cookieStore.get('auth_token');
 
         if (!token) {
-            return NextResponse.json(
-                { message: 'Não autorizado' },
-                { status: 401 }
-            );
+            return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
         }
 
         let userId: number;
@@ -155,10 +105,7 @@ export async function GET(/*request: Request*/) {
             );
             userId = payload.userId as number;
         } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
+            return NextResponse.json({ message: 'Token inválido' }, { status: 401 });
         }
 
         const profile = await getUserProfile(userId);
@@ -170,16 +117,8 @@ export async function GET(/*request: Request*/) {
             );
         }
 
-        // Converter campos JSON de volta para arrays/objetos
-        const formattedProfile = {
-            ...profile,
-            local_atendimento: JSON.parse(profile.local_atendimento),
-            atende: JSON.parse(profile.atende),
-            forma_pagamento: JSON.parse(profile.forma_pagamento),
-            redes_sociais: JSON.parse(profile.redes_sociais)
-        };
-
-        return NextResponse.json({ data: formattedProfile });
+        // Como não temos mais arrays complexos, não precisamos de JSON.parse
+        return NextResponse.json({ data: profile });
     } catch (error) {
         console.error('Erro ao buscar perfil:', error);
         return NextResponse.json(
@@ -187,4 +126,4 @@ export async function GET(/*request: Request*/) {
             { status: 500 }
         );
     }
-} 
+}
