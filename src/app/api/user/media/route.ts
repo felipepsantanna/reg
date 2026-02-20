@@ -7,7 +7,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function POST(request: Request) {
     try {
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(
@@ -56,7 +58,8 @@ export async function POST(request: Request) {
 
 export async function GET() {
     try {
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(
@@ -93,7 +96,8 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     try {
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(

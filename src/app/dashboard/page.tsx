@@ -1,460 +1,175 @@
+// src/app/dashboard/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ProfileTab } from '@/components/dashboard/ProfileTab';
+import { PhotosTab } from '@/components/dashboard/PhotosTab';
+import { VideosTab } from '@/components/dashboard/VideosTab';
 import { RegistrationSuccess } from '@/components/RegistrationSuccess';
-
-export interface MediaUploadResponse {
-    thumbnail: string;
-    url: string;
-}
-
-export interface UserProfileData {
-    nome: string;
-    telefone: string;
-    sexo: string;
-    tamanho_dote?: string;
-    idade: string;
-    altura: string;
-    peso: string;
-    local_atendimento: string[];
-    atende: string[];
-    forma_pagamento: string[];
-    redes_sociais: { tipo: string; url: string }[];
-    descricao: string;
-}
-
+import { UserProfileData } from '@/types/UserProfileData';
+import { MediaItem } from '@/types/MediaItem';
+import { FaSignOutAlt, FaUser, FaCamera, FaVideo } from 'react-icons/fa';
 
 export default function DashboardPage() {
-    const [allowed, setAllowed] = useState("cursor-not-allowed");
-    const [registered, setRegistered] = useState("#");
-    const [formData, setFormData] = useState<UserProfileData>({
-        nome: '',
-        telefone: '',
-        sexo: '',
-        tamanho_dote: '',
-        idade: '',
-        altura: '',
-        peso: '',
-        local_atendimento: [],
-        atende: [],
-        forma_pagamento: [],
-        redes_sociais: [],
-        descricao: ''
-    });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-
     const router = useRouter();
+    const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos'>('profile');
+    const [userData, setUserData] = useState<UserProfileData>({
+        nome: '', sexo: '', idade: '', telefone: '', descricao: '',
+        photos: [], videos: []
+    });
+    const [loading, setLoading] = useState(true);
+    const [saveLoading, setSaveLoading] = useState(false);
 
     useEffect(() => {
-        // Carregar dados do perfil se existirem
-        const fetchProfile = async () => {
+        async function fetchDashboardData() {
             try {
-                setLoading(true);
-                const response = await fetch('/api/user/profile');
+                const [profileRes, mediaRes] = await Promise.all([
+                    fetch('/api/user/profile'),
+                    fetch('/api/user/media')
+                ]);
+                const profileJson = await profileRes.json();
+                const mediaJson = await mediaRes.json();
+                const allMedia: MediaItem[] = mediaJson.media || [];
 
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.data) {
-                        setFormData(data.data);
-                        setAllowed('');
-                        setRegistered('/dashboard/upload');
-                    }
-                }
-            } catch (err) {
-                console.error('Erro ao carregar perfil:', err);
+                setUserData({
+                    ...(profileJson.data || { nome: '', sexo: '', idade: '' }),
+                    photos: allMedia.filter(m => m.type === 'image').sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)),
+                    videos: allMedia.filter(m => m.type === 'video').sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0))
+                });
+            } catch (error) {
+                console.error("Erro ao carregar dados:", error);
             } finally {
                 setLoading(false);
             }
-        };
-
-        fetchProfile();
+        }
+        fetchDashboardData();
     }, []);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
-
-    const handleArrayChange = (name: string, value: string, checked: boolean) => {
-        setFormData(prev => ({
-            ...prev,
-            [name]: checked
-                ? [...prev[name as keyof UserProfileData] as string[], value]
-                : (prev[name as keyof UserProfileData] as string[]).filter(item => item !== value)
-        }));
-    };
-
-    const handleRedeSocialChange = (index: number, field: 'tipo' | 'url', value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            redes_sociais: prev.redes_sociais.map((rede, i) =>
-                i === index ? { ...rede, [field]: value } : rede
-            )
-        }));
-    };
-
-    const addRedeSocial = () => {
-        setFormData(prev => ({
-            ...prev,
-            redes_sociais: [...prev.redes_sociais, { tipo: '', url: '' }]
-        }));
-    };
-
-    const removeRedeSocial = (index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            redes_sociais: prev.redes_sociais.filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Validar se o campo dote é obrigatório apenas quando o sexo for "trans"
-        if (formData.sexo === 'trans' && !formData.tamanho_dote) {
-            setError('O campo Tamanho do Dote é obrigatório para pessoas trans');
-            return;
-        }
-
+    const handleLogout = async () => {
         try {
-            setLoading(true);
-            setError('');
-            setSuccess('');
-
-            const response = await fetch('/api/user/profile', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Erro ao salvar perfil');
-            }
-
-            setSuccess('Perfil salvo com sucesso!');
-            setAllowed('');
-            setRegistered('/dashboard/upload');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erro ao salvar perfil');
-        } finally {
-            setLoading(false);
+            const res = await fetch('/api/auth/logout', { method: 'POST' });
+            if (res.ok) router.push('/login');
+        } catch (error) {
+            console.error('Falha ao deslogar:', error);
         }
     };
+
+    const handleSaveProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSaveLoading(true);
+        try {
+            await fetch('/api/user/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nome: userData.nome,
+                    idade: userData.idade,
+                    sexo: userData.sexo
+                }),
+            });
+            alert('Perfil atualizado!');
+        } finally {
+            setSaveLoading(false);
+        }
+    };
+
+    if (loading) return (
+        <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
+            <div className="text-indigo-600 font-bold animate-pulse">Carregando painel...</div>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Cadastro</h1>
-                    <button
-                        onClick={async () => {
-                            try {
-                                const response = await fetch('/api/auth/logout', {
-                                    method: 'POST',
-                                });
-                                if (response.ok) {
-                                    router.push('/login');
-                                }
-                            } catch (error) {
-                                console.error('Erro ao fazer logout:', error);
-                            }
-                        }}
-                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
-                    >
-                        Sair
-                    </button>
+        <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row">
+
+            {/* Sidebar / Header */}
+            <aside className="w-full lg:w-72 bg-white border-b lg:border-b-0 lg:border-r p-4 lg:p-6 flex flex-row lg:flex-col items-center lg:items-stretch justify-between lg:justify-start gap-4 shadow-sm z-10">
+
+                {/* Logo - Largura fixa no mobile para não empurrar as abas */}
+                <div className="lg:mb-10 lg:px-4 shrink-0 w-auto lg:w-full">
+                    <h1 className="text-base lg:text-xl font-black text-gray-800 tracking-tighter uppercase leading-none">
+                        Capital <span className="text-indigo-600 lg:block">Sexy</span>
+                    </h1>
                 </div>
 
-                <ul className="flex flex-wrap text-sm font-medium text-center border-b border-indigo-200 dark:border-indigo-700">
-                    <li className="me-2">
-                        <a href="#" aria-current="page" className="inline-block p-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Profile</a>
-                    </li>
-                    <li className="me-2">
-                        <a href={registered} className={"inline-block p-4 border border-transparent text-sm font-medium rounded-md hover:bg-indigo-700 hover:text-white dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 " + allowed}>Uploads</a>
-                    </li>
-                </ul>
+                {/* Menu de Abas - Centralizado e Flexível */}
+                <nav className="flex flex-row lg:flex-col gap-1 lg:gap-2 flex-1 justify-center lg:justify-start overflow-x-auto no-scrollbar px-2">
+                    <TabButton
+                        label="Perfil"
+                        icon={<FaUser size={14} />}
+                        active={activeTab === 'profile'}
+                        onClick={() => setActiveTab('profile')}
+                    />
+                    <TabButton
+                        label="Fotos"
+                        icon={<FaCamera size={14} />}
+                        active={activeTab === 'photos'}
+                        onClick={() => setActiveTab('photos')}
+                    />
+                    <TabButton
+                        label="Vídeos"
+                        icon={<FaVideo size={14} />}
+                        active={activeTab === 'videos'}
+                        onClick={() => setActiveTab('videos')}
+                    />
+                </nav>
 
-                {/* Formulário de cadastro */}
-                <div className="mb-8">
-                    <div className="bg-white rounded-lg shadow p-6">
-                        <h2 className="text-2xl font-bold mb-6">Dados de Cadastro</h2>
+                {/* Logout - Alinhado à direita no mobile */}
+                <button
+                    onClick={handleLogout}
+                    className="shrink-0 flex items-center gap-2 p-2 lg:p-4 text-gray-400 hover:text-red-500 font-bold rounded-xl transition-all lg:mt-auto"
+                >
+                    <FaSignOutAlt className="text-lg" />
+                    <span className="hidden sm:inline lg:inline">Sair</span>
+                </button>
+            </aside>
 
-                        {error && (
-                            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
-                                {error}
-                            </div>
+            {/* Conteúdo Principal */}
+            <main className="flex-1 p-4 lg:p-10 overflow-y-auto">
+                <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                    <div className="lg:col-span-2 space-y-6">
+                        {activeTab === 'profile' && (
+                            <ProfileTab
+                                data={userData}
+                                onChange={(e) => setUserData({ ...userData, [e.target.name]: e.target.value })}
+                                onSave={handleSaveProfile}
+                                loading={saveLoading}
+                            />
                         )}
 
-                        {success && (
-                            <div className="mb-4 p-4 bg-green-100 text-green-700 rounded">
-                                {success}
-                            </div>
+                        {activeTab === 'photos' && (
+                            <PhotosTab initialPhotos={userData.photos} />
                         )}
 
-                        <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Nome Completo
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="nome"
-                                        name="nome"
-                                        value={formData.nome}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Telefone
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        id="telefone"
-                                        name="telefone"
-                                        value={formData.telefone}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div>
-                                    <label htmlFor="sexo" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Sexo
-                                    </label>
-                                    <select
-                                        id="sexo"
-                                        name="sexo"
-                                        value={formData.sexo}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Selecione</option>
-                                        <option value="feminino">Feminino</option>
-                                        <option value="masculino">Masculino</option>
-                                        <option value="trans">Trans</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label htmlFor="idade" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Idade
-                                    </label>
-                                    <input
-                                        type="number"
-                                        id="idade"
-                                        name="idade"
-                                        value={formData.idade}
-                                        onChange={handleChange}
-                                        required
-                                        min="18"
-                                        max="99"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-
-                                {formData.sexo === 'trans' && (
-                                    <div>
-                                        <label htmlFor="tamanho_dote" className="block text-sm font-medium text-gray-700 mb-1">
-                                            Tamanho do Dote <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            id="tamanho_dote"
-                                            name="tamanho_dote"
-                                            value={formData.tamanho_dote}
-                                            onChange={handleChange}
-                                            required
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label htmlFor="altura" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Altura
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="altura"
-                                        name="altura"
-                                        value={formData.altura}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="peso" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Peso
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="peso"
-                                        name="peso"
-                                        value={formData.peso}
-                                        onChange={handleChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Local de Atendimento
-                                </label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    {['motel', 'hotel', 'local próprio', 'residência'].map(local => (
-                                        <label key={local} className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.local_atendimento.includes(local)}
-                                                onChange={(e) => handleArrayChange('local_atendimento', local, e.target.checked)}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>{local}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Atende
-                                </label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                    {['homens', 'mulheres', 'casais'].map(tipo => (
-                                        <label key={tipo} className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.atende.includes(tipo)}
-                                                onChange={(e) => handleArrayChange('atende', tipo, e.target.checked)}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>{tipo}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Forma de Pagamento
-                                </label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    {['Dinheiro', 'PIX', 'Cartão', 'Transferência'].map(forma => (
-                                        <label key={forma} className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.forma_pagamento.includes(forma)}
-                                                onChange={(e) => handleArrayChange('forma_pagamento', forma, e.target.checked)}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span>{forma}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Redes Sociais
-                                </label>
-                                {formData.redes_sociais.map((rede, index) => (
-                                    <div key={index} className="flex gap-2 mb-2">
-                                        <select
-                                            value={rede.tipo}
-                                            onChange={(e) => handleRedeSocialChange(index, 'tipo', e.target.value)}
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="">Selecione</option>
-                                            <option value="instagram">Instagram</option>
-                                            <option value="twitter">Twitter</option>
-                                            <option value="facebook">Facebook</option>
-                                            <option value="tiktok">TikTok</option>
-                                            <option value="privacy">Privacy</option>
-                                            <option value="onlyfans">OnlyFans</option>
-                                        </select>
-                                        <input
-                                            type="url"
-                                            value={rede.url}
-                                            onChange={(e) => handleRedeSocialChange(index, 'url', e.target.value)}
-                                            placeholder="URL"
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeRedeSocial(index)}
-                                            className="px-3 py-2 text-red-600 hover:text-red-800"
-                                        >
-                                            Remover
-                                        </button>
-                                    </div>
-                                ))}
-                                <button
-                                    type="button"
-                                    onClick={addRedeSocial}
-                                    className="mt-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-                                >
-                                    + Adicionar Rede Social
-                                </button>
-                            </div>
-
-                            <div className="mb-6">
-                                <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Descrição
-                                </label>
-                                <textarea
-                                    id="descricao"
-                                    name="descricao"
-                                    value={formData.descricao}
-                                    onChange={handleChange}
-                                    rows={4}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-
-                            <div className="flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {loading ? 'Salvando...' : 'Salvar Dados'}
-                                </button>
-                            </div>
-                        </form>
-
-                        <RegistrationSuccess
-                            userName={formData.nome}
-                        />
-
+                        {activeTab === 'videos' && (
+                            <VideosTab initialVideos={userData.videos} />
+                        )}
                     </div>
-                </div>
 
-            </div>
+                    <aside className="lg:col-span-1">
+                        <div className="sticky top-10">
+                            <RegistrationSuccess userName={userData.nome || 'Anunciante'} />
+                        </div>
+                    </aside>
+                </div>
+            </main>
         </div>
+    );
+}
+
+function TabButton({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: any }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center justify-center lg:justify-start gap-2 lg:gap-3 px-3 py-2 lg:p-4 rounded-xl lg:rounded-2xl font-bold transition-all whitespace-nowrap ${active
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                : 'text-gray-400 hover:bg-gray-50'
+                }`}
+        >
+            <span className="shrink-0">{icon}</span>
+            <span className="text-xs lg:text-base">{label}</span>
+        </button>
     );
 }

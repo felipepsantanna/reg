@@ -26,8 +26,8 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
-
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(
