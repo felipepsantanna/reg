@@ -32,15 +32,16 @@ export async function POST(request: Request) {
             .sign(secret);
 
         // Definir cookie
-        cookies().set('auth_token', token, {
+        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+        cookieStore.set('auth_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
             maxAge: 60 * 60 * 24 // 24 horas
         });
 
-        if(user.status === 'primeiro acesso'){
-           await saveUserFirstAccess(user.id);
+        if (user.status === 'primeiro acesso') {
+            await saveUserFirstAccess(user.id);
         }
 
 

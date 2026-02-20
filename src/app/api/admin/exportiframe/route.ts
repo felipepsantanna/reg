@@ -23,7 +23,8 @@ type RedeSocial = {
 export async function POST(request: Request) {
 
   try {
-    const token = cookies().get('admin_token');
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_token');
 
     if (!token) {
       return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });

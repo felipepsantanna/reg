@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getMediaById, deleteMediaById } from '@/lib/db-operations';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
+
+interface RouteContext {
+    params: Promise<{ id: string }>;
+}
+
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
+    _request: NextRequest,
+    context: RouteContext
 ) {
-
     try {
-        const { id } = params;
-        request = request;
+        const { id } = await context.params;
 
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(
@@ -29,7 +33,8 @@ export async function DELETE(
                 new TextEncoder().encode(JWT_SECRET)
             );
             userId = payload.userId as number;
-            if (userId == 0) {
+
+            if (!userId || userId === 0) {
                 return NextResponse.json(
                     { message: 'Token inválido' },
                     { status: 401 }
@@ -43,17 +48,15 @@ export async function DELETE(
         }
 
         try {
-
-
             const media = await getMediaById(Number(id));
 
-            if (media && media.user_id == userId) {
-
+            if (media && media.user_id === userId) {
                 if (media.type === 'image') {
                     const storageHost = process.env.BUNNY_STORAGE_HOST!;
                     const storageName = process.env.BUNNY_STORAGE_NAME!;
                     const accessKeyCDN = process.env.BUNNY_STORAGE_ACCESS!;
                     const replacedUrl = process.env.BUNNY_STORAGE_URL!;
+
                     const path = media.url.replace(replacedUrl, "");
                     const deleteImageUrl = `${storageHost}/${storageName}/${path}`;
 
@@ -65,7 +68,7 @@ export async function DELETE(
                     });
 
                     if (!deleteImageResp.ok) {
-                        throw new Error('Error na hora de remover a imagem');
+                        throw new Error('Erro na hora de remover a imagem no Bunny');
                     }
                 } else {
                     const libraryId = process.env.BUNNY_LIBRARY_ID;
@@ -85,33 +88,31 @@ export async function DELETE(
                     });
 
                     if (!deleteVideoResp.ok) {
-                        throw new Error('Error na hora de remover o vídeo');
+                        throw new Error('Erro na hora de remover o vídeo no Bunny');
                     }
                 }
 
+                // Remove do banco de dados apenas se a remoção no Bunny deu certo ou se for mídia órfã
                 await deleteMediaById(Number(id));
-
             }
 
         } catch (e) {
+            console.error('Erro ao deletar mídia:', e);
             return NextResponse.json(
-                { message: 'Error na hora de remover a imagem' },
+                { message: 'Erro na hora de remover a mídia' },
                 { status: 500 }
             );
         }
 
-
-
         return NextResponse.json(
-            { error: 'ok' },
+            { success: true, message: 'Removido com sucesso' },
             { status: 200 }
         );
 
-
     } catch (error) {
-        console.error('Erro no upload:', error);
+        console.error('Erro interno no DELETE:', error);
         return NextResponse.json(
-            { error: 'Erro ao fazer upload do arquivo' },
+            { error: 'Erro ao processar a exclusão' },
             { status: 500 }
         );
     }

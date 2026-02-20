@@ -1,18 +1,19 @@
+// src/proxy.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-export async function middleware(request: NextRequest) {
+// No Next.js 16, a função segue a convenção de nome 'proxy'
+export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key');
 
-    // Verificar se é uma rota administrativa
+    // 1. Lógica para Rotas Administrativas
     if (path.startsWith('/admin')) {
-        // Permitir acesso à página de login e à rota de login da API
         if (path === '/admin/login' || path === '/api/admin/login') {
             return NextResponse.next();
         }
 
-        // Verificar token para outras rotas administrativas
         const token = request.cookies.get('admin_token')?.value;
 
         if (!token) {
@@ -20,7 +21,6 @@ export async function middleware(request: NextRequest) {
         }
 
         try {
-            const secret = new TextEncoder().encode(process.env.JWT_SECRET);
             const { payload } = await jwtVerify(token, secret);
 
             if (payload.role !== 'admin') {
@@ -29,26 +29,23 @@ export async function middleware(request: NextRequest) {
 
             return NextResponse.next();
         } catch (error) {
-            console.error('Erro ao verificar token:', error);
+            console.error('Erro ao verificar token admin:', error);
             return NextResponse.redirect(new URL('/admin/login', request.url));
         }
     }
 
-    // Verificar se é uma rota de dashboard
+    // 2. Lógica para Rota de Dashboard (Anunciantes)
     if (path.startsWith('/dashboard')) {
-        const token = request.cookies.get('auth_token');
+        const token = request.cookies.get('auth_token')?.value;
 
-        // Se não houver token, redirecionar para login
         if (!token) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
 
         try {
-            // Verificar token
-            const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key');
-            const { payload } = await jwtVerify(token.value, secret);
+            const { payload } = await jwtVerify(token, secret);
 
-            // Verificar se é anunciante
+            // Verifique se o payload.role condiz com o que você emite no login
             if (payload.role !== 'anunciante') {
                 return NextResponse.redirect(new URL('/login', request.url));
             }
@@ -63,6 +60,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
+// 3. MATCHER ATUALIZADO (Extremamente importante)
 export const config = {
-    matcher: ['/admin/:path*', '/api/admin/:path*']
-}; 
+    // Agora incluímos /dashboard e /api/user para garantir proteção total
+    matcher: [
+        '/admin/:path*',
+        '/api/admin/:path*',
+        '/dashboard/:path*',
+        '/api/user/:path*'
+    ]
+};

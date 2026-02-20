@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 export async function POST() {
     try {
-        const cookieStore = cookies();
+        const cookieStore = await cookies(); // Adicionado await para Next.js 15
         cookieStore.delete('auth_token');
 
         return NextResponse.json({ success: true });
@@ -14,4 +14,4 @@ export async function POST() {
             { status: 500 }
         );
     }
-} 
+}

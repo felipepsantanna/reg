@@ -8,7 +8,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
 export async function POST(request: Request) {
     try {
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies();
+
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(
@@ -79,21 +81,21 @@ export async function POST(request: Request) {
 
         // Verificar se o perfil já existe
         const existingProfile = await getUserProfile(userId);
-        
-        
-       
-   
+
+
+
+
 
         let result;
         if (existingProfile) {
 
-const formattedProfile = {
-            ...existingProfile,
-            local_atendimento: JSON.parse(existingProfile.local_atendimento),
-            atende: JSON.parse(existingProfile.atende),
-            forma_pagamento: JSON.parse(existingProfile.forma_pagamento),
-            redes_sociais: JSON.parse(existingProfile.redes_sociais)
-        };
+            const formattedProfile = {
+                ...existingProfile,
+                local_atendimento: JSON.parse(existingProfile.local_atendimento),
+                atende: JSON.parse(existingProfile.atende),
+                forma_pagamento: JSON.parse(existingProfile.forma_pagamento),
+                redes_sociais: JSON.parse(existingProfile.redes_sociais)
+            };
 
             const changes = await getUpdatedFields(formattedProfile, profileData);
 
@@ -135,7 +137,8 @@ const formattedProfile = {
 
 export async function GET(/*request: Request*/) {
     try {
-        const token = cookies().get('auth_token');
+        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+        const token = cookieStore.get('auth_token');
 
         if (!token) {
             return NextResponse.json(

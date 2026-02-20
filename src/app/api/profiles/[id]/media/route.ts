@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { RowDataPacket } from 'mysql2';
 
@@ -11,16 +11,23 @@ interface MediaRow extends RowDataPacket {
     poster?: string;
 }
 
+// 1. Defina a interface para o contexto com params como Promise
+interface RouteContext {
+    params: Promise<{ id: string }>;
+}
+
 export async function GET(
-    request: Request,
-    { params }: { params: { id: string } }
+    _request: NextRequest,
+    context: RouteContext // 2. Use a interface aqui
 ) {
     try {
-        request = request;
+        // 3. Aguarde a resolução dos parâmetros
+        const { id } = await context.params;
+
         // Verificar se o perfil existe e está aprovado
         const [profileRows] = await pool.execute<RowDataPacket[]>(
             'SELECT id FROM user_profiles WHERE user_id = ? AND status = ?',
-            [params.id, 'approved']
+            [id, 'approved']
         );
 
         if (profileRows.length === 0) {
@@ -32,11 +39,10 @@ export async function GET(
 
         // Buscar mídias do perfil
         const [mediaRows] = await pool.execute<MediaRow[]>(`
-            SELECT * 
-            FROM media
+            SELECT * FROM media
             WHERE user_id = ? 
             ORDER BY type, position ASC
-        `, [params.id]);
+        `, [id]);
 
         return NextResponse.json({ data: mediaRows });
     } catch (error) {
@@ -46,4 +52,4 @@ export async function GET(
             { status: 500 }
         );
     }
-} 
+}
