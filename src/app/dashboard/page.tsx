@@ -8,7 +8,7 @@ import { VideosTab } from '@/components/dashboard/VideosTab';
 import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
-import { FaSignOutAlt, FaUser, FaCamera, FaVideo, FaGem } from 'react-icons/fa';
+import { FaSignOutAlt, FaGem } from 'react-icons/fa';
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -20,7 +20,6 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [saveLoading, setSaveLoading] = useState(false);
 
-    // Carregamento de dados original mantido
     useEffect(() => {
         async function fetchDashboardData() {
             try {
@@ -84,59 +83,32 @@ export default function DashboardPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
-
-            {/* HEADER FIXO NO TOPO */}
             <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-gray-100 z-50 px-4 md:px-8 shadow-sm">
                 <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-4">
-
-                    {/* Logo */}
                     <div className="flex items-center gap-2 shrink-0">
                         <div className="bg-indigo-600 p-2 rounded-lg text-white">
                             <FaGem size={18} />
                         </div>
-                        <h1 className="text-lg font-black text-gray-800 tracking-tighter uppercase leading-none hidden sm:block">
+                        <h1 className="text-lg font-black text-gray-800 tracking-tighter uppercase hidden sm:block">
                             Capital <span className="text-indigo-600">Sexy</span>
                         </h1>
                     </div>
 
-                    {/* Menu de Abas Horizontal */}
-                    <nav className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl overflow-x-auto no-scrollbar">
-                        <TabButton
-                            label="Perfil"
-                            icon={<FaUser size={14} />}
-                            active={activeTab === 'profile'}
-                            onClick={() => setActiveTab('profile')}
-                        />
-                        <TabButton
-                            label="Fotos"
-                            icon={<FaCamera size={14} />}
-                            active={activeTab === 'photos'}
-                            onClick={() => setActiveTab('photos')}
-                        />
-                        <TabButton
-                            label="Vídeos"
-                            icon={<FaVideo size={14} />}
-                            active={activeTab === 'videos'}
-                            onClick={() => setActiveTab('videos')}
-                        />
+                    <nav className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl">
+                        <TabButton label="Perfil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
+                        <TabButton label="Fotos" active={activeTab === 'photos'} onClick={() => setActiveTab('photos')} />
+                        <TabButton label="Vídeos" active={activeTab === 'videos'} onClick={() => setActiveTab('videos')} />
                     </nav>
 
-                    {/* Logout */}
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-500 font-bold text-sm transition-all shrink-0"
-                    >
+                    <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-500 font-bold text-sm transition-all shrink-0">
                         <FaSignOutAlt />
                         <span className="hidden md:inline">Sair</span>
                     </button>
                 </div>
             </header>
 
-            {/* CONTEÚDO PRINCIPAL (Padding Top para compensar o Header Fixo) */}
             <main className="flex-1 pt-24 pb-12 px-4 md:px-8">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                    {/* Lado Esquerdo: Abas Ativas */}
                     <div className="lg:col-span-2 space-y-6">
                         {activeTab === 'profile' && (
                             <ProfileTab
@@ -146,44 +118,29 @@ export default function DashboardPage() {
                                 loading={saveLoading}
                             />
                         )}
-
-                        {activeTab === 'photos' && (
-                            <PhotosTab initialPhotos={userData.photos} />
-                        )}
-
-                        {activeTab === 'videos' && (
-                            <VideosTab initialVideos={userData.videos} />
-                        )}
+                        {activeTab === 'photos' && <PhotosTab initialPhotos={userData.photos} />}
+                        {activeTab === 'videos' && <VideosTab initialVideos={userData.videos} />}
                     </div>
 
-                    {/* Lado Direito: Widget de Sucesso (Sticky) */}
                     <aside className="lg:col-span-1">
                         <div className="sticky top-24">
                             <RegistrationSuccess userName={userData.nome || 'Anunciante'} />
                         </div>
                     </aside>
-
                 </div>
             </main>
         </div>
     );
 }
 
-// Botão de Aba Estilizado para o Topo
-function TabButton({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon: any }) {
+function TabButton({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) {
     return (
         <button
             onClick={onClick}
-            className={`
-                flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all text-sm whitespace-nowrap
-                ${active
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
-                }
-            `}
+            className={`px-5 py-2.5 rounded-xl font-bold transition-all text-sm whitespace-nowrap ${active ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
         >
-            <span className={active ? 'text-indigo-600' : 'text-gray-400'}>{icon}</span>
-            <span>{label}</span>
+            {label}
         </button>
     );
 }

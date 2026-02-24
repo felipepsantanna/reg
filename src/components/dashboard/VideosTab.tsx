@@ -19,54 +19,51 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
         if (!files || files.length === 0) return;
 
         setUploading(true);
-        try {
-            const file = files[0];
-            const videoData = await uploadToBunnyCDN(file, file.type);
+        const fileArray = Array.from(files);
 
-            if (!videoData || !videoData.url) throw new Error('Falha no upload do vídeo');
+        for (const file of fileArray) {
+            try {
+                const videoData = await uploadToBunnyCDN(file, file.type);
+                if (!videoData?.url) throw new Error('Erro no upload');
 
-            const dbRes = await fetch('/api/user/media', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                const dbRes = await fetch('/api/user/media', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'video',
+                        url: videoData.url,
+                        thumbnail: videoData.thumbnail || videoData.url,
+                        position: videos.length
+                    })
+                });
+
+                const dbData = await dbRes.json();
+                if (!dbRes.ok) throw new Error('Erro ao salvar');
+
+                const newVideo: MediaItem = {
+                    id: dbData.data.id,
+                    url: dbData.data.url,
                     type: 'video',
-                    url: videoData.url,
-                    thumbnail: videoData.thumbnail || videoData.url,
-                    position: videos.length
-                })
-            });
+                    position: dbData.data.position,
+                    thumbnail: dbData.data.thumbnail
+                };
 
-            const dbData = await dbRes.json();
-            if (!dbRes.ok) throw new Error('Erro ao salvar vídeo no banco');
-
-            const newVideo: MediaItem = {
-                id: dbData.data.id,
-                url: dbData.data.url,
-                type: 'video',
-                position: dbData.data.position,
-                thumbnail: dbData.data.thumbnail
-            };
-
-            setVideos(prev => [...prev, newVideo]);
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+                setVideos(prev => [...prev, newVideo]);
+            } catch (err: any) {
+                console.error(`Erro no vídeo ${file.name}:`, err.message);
+            }
         }
+
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleDelete = async (id: number | string) => {
-        if (!confirm('Tem certeza que deseja excluir este vídeo?')) return;
-
+        if (!confirm('Excluir este vídeo?')) return;
         try {
             const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Erro ao excluir vídeo');
-
-            setVideos(prev => prev.filter(v => v.id !== id));
-        } catch (err: any) {
-            alert(err.message);
-        }
+            if (res.ok) setVideos(prev => prev.filter(v => v.id !== id));
+        } catch (err) { alert('Erro ao excluir'); }
     };
 
     async function handleDragEnd(event: DragEndEvent) {
@@ -76,13 +73,8 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
             const newIndex = videos.findIndex((v) => String(v.id) === String(over.id));
             const newOrder = arrayMove(videos, oldIndex, newIndex);
             setVideos(newOrder);
-
             const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
-            await fetch('/api/user/media', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mediaPositions }),
-            });
+            fetch('/api/user/media', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mediaPositions }) });
         }
     }
 
@@ -96,9 +88,9 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
                     className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400"
                 >
                     <FaVideo size={14} />
-                    {uploading ? 'Processando...' : 'Adicionar Vídeo'}
+                    {uploading ? 'Processando...' : 'Adicionar Vídeos'}
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleUpload} accept="video/*" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleUpload} accept="video/*" multiple className="hidden" />
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -116,28 +108,13 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
 
 function SortableVideo({ video, onDelete }: { video: MediaItem, onDelete: (id: number | string) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(video.id) });
-
     return (
-        <div
-            ref={setNodeRef}
-            style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }}
-            {...attributes}
-            {...listeners}
-            className="group relative aspect-[9/16] bg-gray-900 rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing"
-        >
+        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }} {...attributes} {...listeners} className="group relative aspect-[9/16] bg-gray-900 rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing">
             <img src={video.thumbnail || video.url} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" alt="" draggable={false} />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="bg-white/30 backdrop-blur-sm p-3 rounded-full text-white"><FaPlay size={16} /></div>
             </div>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(video.id);
-                }}
-                className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 active:scale-90"
-            >
-                <FaTrash size={12} />
-            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(video.id); }} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><FaTrash size={12} /></button>
         </div>
     );
 }

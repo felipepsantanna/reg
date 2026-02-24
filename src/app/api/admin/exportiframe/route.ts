@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     const { userId } = await request.json();
 
-
+    console.log(`${process.env.URL_BASE}/api/profiles/${userId}`);
     const fetchProfile = await fetch(`${process.env.URL_BASE}/api/profiles/${userId}`);
     if (!fetchProfile.ok) {
       throw new Error('Erro ao buscar perfil');
