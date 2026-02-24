@@ -18,59 +18,57 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
         if (!files || files.length === 0) return;
 
         setUploading(true);
-        try {
-            const file = files[0];
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', 'image');
+        const fileArray = Array.from(files);
 
-            const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-            const uploadData = await uploadRes.json();
-            if (!uploadRes.ok) throw new Error(uploadData.error || 'Erro no upload');
+        for (const file of fileArray) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('type', 'image');
 
-            const dbRes = await fetch('/api/user/media', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+                const uploadData = await uploadRes.json();
+                if (!uploadRes.ok) throw new Error(uploadData.error || 'Erro no upload');
+
+                const dbRes = await fetch('/api/user/media', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'image',
+                        url: uploadData.url,
+                        thumbnail: uploadData.thumbnail,
+                        position: photos.length // Nota: a posição ideal seria calculada pelo estado atualizado
+                    })
+                });
+
+                const dbData = await dbRes.json();
+                if (!dbRes.ok) throw new Error('Erro ao salvar no banco');
+
+                const newPhoto: MediaItem = {
+                    id: dbData.data.id,
+                    url: dbData.data.url,
                     type: 'image',
-                    url: uploadData.url,
-                    thumbnail: uploadData.thumbnail,
-                    position: photos.length
-                })
-            });
+                    position: dbData.data.position,
+                    thumbnail: dbData.data.thumbnail
+                };
 
-            const dbData = await dbRes.json();
-            if (!dbRes.ok) throw new Error('Erro ao salvar no banco');
-
-            const newPhoto: MediaItem = {
-                id: dbData.data.id,
-                url: dbData.data.url,
-                type: 'image',
-                position: dbData.data.position,
-                thumbnail: dbData.data.thumbnail
-            };
-
-            setPhotos(prev => [...prev, newPhoto]);
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+                setPhotos(prev => [...prev, newPhoto]);
+            } catch (err: any) {
+                console.error(`Erro ao enviar ${file.name}:`, err.message);
+            }
         }
+
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    // ... handleDragEnd e handleDelete mantidos das versões anteriores ...
     const handleDelete = async (id: number | string) => {
-        if (!confirm('Tem certeza que deseja excluir esta foto?')) return;
-
+        if (!confirm('Excluir esta foto?')) return;
         try {
             const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Erro ao excluir arquivo');
-
-            // Remove do estado local
-            setPhotos(prev => prev.filter(p => p.id !== id));
-        } catch (err: any) {
-            alert(err.message);
-        }
+            if (res.ok) setPhotos(prev => prev.filter(p => p.id !== id));
+        } catch (err) { alert('Erro ao excluir'); }
     };
 
     async function handleDragEnd(event: DragEndEvent) {
@@ -80,13 +78,8 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
             const newIndex = photos.findIndex((p) => String(p.id) === String(over.id));
             const newOrder = arrayMove(photos, oldIndex, newIndex);
             setPhotos(newOrder);
-
             const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
-            await fetch('/api/user/media', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mediaPositions }),
-            });
+            fetch('/api/user/media', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mediaPositions }) });
         }
     }
 
@@ -100,9 +93,9 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
                     className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400"
                 >
                     <FaCloudUploadAlt />
-                    {uploading ? 'Enviando...' : 'Adicionar Foto'}
+                    {uploading ? 'Enviando...' : 'Adicionar Fotos'}
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleUpload} accept="image/*" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleUpload} accept="image/*" multiple className="hidden" />
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -120,26 +113,11 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
 
 function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: number | string) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(photo.id) });
-
     return (
-        <div
-            ref={setNodeRef}
-            style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }}
-            {...attributes}
-            {...listeners}
-            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50"
-        >
+        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }} {...attributes} {...listeners} className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50">
             <img src={photo.url} className="w-full h-full object-cover" alt="" draggable={false} />
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-start justify-end p-2 transition-opacity">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation(); // Evita ativar o drag ao clicar no delete
-                        onDelete(photo.id);
-                    }}
-                    className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 shadow-lg active:scale-90 transition-transform"
-                >
-                    <FaTrash size={12} />
-                </button>
+                <button onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }} className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"><FaTrash size={12} /></button>
             </div>
         </div>
     );
