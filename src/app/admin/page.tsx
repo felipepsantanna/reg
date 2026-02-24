@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import {
     FaCheck,
     FaTimes,
@@ -14,7 +12,7 @@ import {
 import {
     HiOutlinePhotograph,
     HiOutlineVideoCamera
-} from 'react-icons/hi'; // Ícones clean para mídias
+} from 'react-icons/hi';
 import { toast, Toaster } from 'sonner';
 
 interface User {
@@ -59,24 +57,29 @@ export default function AdminPage() {
     };
 
     const handleUpdateStatus = async (userId: number, newStatus: 'approved' | 'rejected') => {
+        const toastId = toast.loading('Atualizando status...');
         try {
             const response = await fetch(`/api/profiles/${userId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
             });
-            if (!response.ok) throw new Error();
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Erro na operação');
+            }
+
             setUsers(users.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-            toast.success(`Perfil ${newStatus === 'approved' ? 'aprovado' : 'rejeitado'}`);
-        } catch (err) {
-            toast.error('Erro na operação');
+            toast.success(`Perfil ${newStatus === 'approved' ? 'aprovado' : 'rejeitado'}`, { id: toastId });
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao atualizar status', { id: toastId });
         }
     };
 
     const handleExportIframe = async (userId: number) => {
-        // Iniciamos um toast de carregamento para dar feedback imediato
         const toastId = toast.loading('Gerando código de exportação...');
-
         try {
             const response = await fetch(`/api/admin/exportiframe`, {
                 method: 'POST',
@@ -86,53 +89,55 @@ export default function AdminPage() {
 
             const data = await response.json();
 
-            // 1. Verificação de Erro (Status 401, 403, 500, etc)
             if (!response.ok) {
-                // Buscamos a chave 'error' que você definiu na sua API
                 throw new Error(data.error || 'Erro desconhecido no servidor');
             }
 
-            // 2. Verificação de Sucesso
             if (data.success && data.text) {
                 await navigator.clipboard.writeText(data.text);
-
-                // Atualizamos o toast de carregamento para sucesso
                 toast.success('Copiado!', {
                     id: toastId,
                     description: 'O código já está na sua área de transferência.',
-                    duration: 3000
                 });
             } else {
                 throw new Error('A API retornou sucesso, mas sem conteúdo.');
             }
-
         } catch (err: any) {
-            console.error("Erro na exportação:", err);
-
-            // Atualizamos o toast de carregamento para erro com a mensagem real da API
             toast.error('Falha na exportação', {
                 id: toastId,
                 description: err.message,
-                duration: 4000
             });
         }
     };
 
     const handleChangePassword = async () => {
-        if (!newPassword) return toast.error('Digite a senha');
+        if (!newPassword) {
+            toast.error('Digite a senha');
+            return; // Adicionado explicitamente para fechar este caminho
+        }
+
+        const toastId = toast.loading('Salvando nova senha...');
+
         try {
             const res = await fetch(`/api/admin/users/${selectedUserId}/password`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password: newPassword })
             });
-            if (!res.ok) throw new Error();
-            toast.success('Senha alterada');
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Erro ao salvar senha');
+            }
+
+            toast.success('Senha alterada com sucesso', { id: toastId });
             setIsPasswordModalOpen(false);
             setNewPassword('');
-        } catch (err) {
-            toast.error('Erro ao salvar senha');
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar senha', { id: toastId });
         }
+        // O TS agora entende que todos os caminhos (if, try e catch) estão cobertos
     };
 
     const filtrados = users.filter(u => {
@@ -141,22 +146,32 @@ export default function AdminPage() {
         return matchBusca && matchStatus;
     });
 
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-white flex items-center justify-center font-sans antialiased">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Carregando</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans antialiased">
-            <Toaster position="bottom-center" />
+            <Toaster position="bottom-center" richColors />
 
             <div className="max-w-6xl mx-auto px-4 py-8">
                 <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-12">
                     <h1 className="text-2xl font-semibold tracking-tight">Admin <span className="text-slate-400 font-light">Panel</span></h1>
                     <button
                         onClick={() => router.push('/admin/cadastrar')}
-                        className="text-sm bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-colors"
+                        className="text-sm bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-colors shadow-sm"
                     >
                         Novo Usuário
                     </button>
                 </header>
 
-                {/* Filtros Clean */}
                 <div className="flex flex-col sm:flex-row gap-3 mb-8">
                     <input
                         type="text"
@@ -176,7 +191,6 @@ export default function AdminPage() {
                     </select>
                 </div>
 
-                {/* Tabela Responsiva */}
                 <div className="overflow-x-auto border border-slate-100 rounded-2xl">
                     <table className="w-full text-left border-collapse">
                         <thead>
@@ -191,7 +205,6 @@ export default function AdminPage() {
                         <tbody className="divide-y divide-slate-50">
                             {filtrados.map((user) => (
                                 <tr key={user.id} className="hover:bg-slate-50/30 transition-colors">
-                                    {/* Status Simplificado para Mobile */}
                                     <td className="px-6 py-4 text-center md:hidden">
                                         <div className={`w-2 h-2 rounded-full mx-auto ${user.status === 'approved' ? 'bg-green-500' :
                                             user.status === 'rejected' ? 'bg-red-500' : 'bg-slate-300'
@@ -226,7 +239,6 @@ export default function AdminPage() {
 
                                     <td className="px-6 py-4">
                                         <div className="flex justify-end gap-1">
-                                            {/* Lógica de Aprovação/Rejeição Condicional */}
                                             {user.status !== 'approved' && (
                                                 <button onClick={() => handleUpdateStatus(user.id, 'approved')} className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-all" title="Aprovar">
                                                     <FaCheck size={14} />
@@ -252,7 +264,6 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* Modal Clean */}
             {isPasswordModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/5 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
                     <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
