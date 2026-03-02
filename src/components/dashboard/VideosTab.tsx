@@ -1,18 +1,37 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    TouchSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
-import { FaVideo, FaTrash, FaPlay } from 'react-icons/fa';
+import { FaVideo, FaTrash } from 'react-icons/fa';
 import { uploadToBunnyCDN } from '@/lib/uploadBunny';
 
 export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => {
     const [videos, setVideos] = useState<MediaItem[]>(initialVideos || []);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 8 },
+        }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 120,
+                tolerance: 8,
+            },
+        })
+    );
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -33,8 +52,8 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
                         type: 'video',
                         url: videoData.url,
                         thumbnail: videoData.thumbnail || videoData.url,
-                        position: videos.length
-                    })
+                        position: videos.length, // mantendo sua lógica atual
+                    }),
                 });
 
                 const dbData = await dbRes.json();
@@ -45,12 +64,12 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
                     url: dbData.data.url,
                     type: 'video',
                     position: dbData.data.position,
-                    thumbnail: dbData.data.thumbnail
+                    thumbnail: dbData.data.thumbnail,
                 };
 
-                setVideos(prev => [...prev, newVideo]);
+                setVideos((prev) => [...prev, newVideo]);
             } catch (err: any) {
-                console.error(`Erro no vídeo ${file.name}:`, err.message);
+                console.error(`Erro no vídeo ${file.name}:`, err?.message);
             }
         }
 
@@ -60,28 +79,40 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
 
     const handleDelete = async (id: number | string) => {
         if (!confirm('Excluir este vídeo?')) return;
+
         try {
             const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
-            if (res.ok) setVideos(prev => prev.filter(v => v.id !== id));
-        } catch (err) { alert('Erro ao excluir'); }
+            if (res.ok) setVideos((prev) => prev.filter((v) => String(v.id) !== String(id)));
+        } catch (err) {
+            alert('Erro ao excluir');
+        }
     };
 
     async function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event;
-        if (over && active.id !== over.id) {
-            const oldIndex = videos.findIndex((v) => String(v.id) === String(active.id));
-            const newIndex = videos.findIndex((v) => String(v.id) === String(over.id));
-            const newOrder = arrayMove(videos, oldIndex, newIndex);
-            setVideos(newOrder);
-            const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
-            fetch('/api/user/media', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mediaPositions }) });
-        }
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = videos.findIndex((v) => String(v.id) === String(active.id));
+        const newIndex = videos.findIndex((v) => String(v.id) === String(over.id));
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const newOrder = arrayMove(videos, oldIndex, newIndex);
+        setVideos(newOrder);
+
+        const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
+
+        fetch('/api/user/media', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mediaPositions }),
+        });
     }
 
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-black text-gray-800">Meus Vídeos</h2>
+
                 <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
@@ -90,11 +121,22 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
                     <FaVideo size={14} />
                     {uploading ? 'Processando...' : 'Adicionar Vídeos'}
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleUpload} accept="video/*" multiple className="hidden" />
+
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleUpload}
+                    accept="video/*"
+                    multiple
+                    className="hidden"
+                />
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={videos.filter(v => v?.id).map(v => String(v.id))} strategy={rectSortingStrategy}>
+                <SortableContext
+                    items={videos.filter((v) => v?.id).map((v) => String(v.id))}
+                    strategy={rectSortingStrategy}
+                >
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {videos.map((video) => (
                             <SortableVideo key={video.id} video={video} onDelete={handleDelete} />
@@ -106,15 +148,61 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
     );
 };
 
-function SortableVideo({ video, onDelete }: { video: MediaItem, onDelete: (id: number | string) => void }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(video.id) });
+function SortableVideo({
+    video,
+    onDelete,
+}: {
+    video: MediaItem;
+    onDelete: (id: number | string) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: String(video.id),
+    });
+
     return (
-        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }} {...attributes} {...listeners} className="group relative aspect-[9/16] bg-gray-900 rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing">
-            <img src={video.thumbnail || video.url} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity" alt="" draggable={false} />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="bg-white/30 backdrop-blur-sm p-3 rounded-full text-white"><FaPlay size={16} /></div>
+        <div
+            ref={setNodeRef}
+            style={{
+                transform: CSS.Transform.toString(transform),
+                transition,
+                zIndex: isDragging ? 50 : 0,
+                touchAction: 'none', // ✅ essencial no mobile para o DnD funcionar
+            }}
+            {...attributes}
+            {...listeners}
+            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50"
+        >
+            <video
+                src={video.url}
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+            />
+
+            {/* ✅ No mobile não existe hover: deixamos sempre visível; no desktop aparece no hover */}
+            <div
+                className="
+          absolute inset-0
+          bg-black/20
+          opacity-100 md:opacity-0 md:group-hover:opacity-100
+          flex items-start justify-end p-2
+          transition-opacity
+          pointer-events-none
+        "
+            >
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(video.id);
+                    }}
+                    className="pointer-events-auto bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
+                    aria-label="Excluir vídeo"
+                    title="Excluir"
+                >
+                    <FaTrash size={12} />
+                </button>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onDelete(video.id); }} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"><FaTrash size={12} /></button>
         </div>
     );
 }

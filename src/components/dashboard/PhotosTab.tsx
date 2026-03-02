@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
@@ -11,7 +11,18 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
     const [photos, setPhotos] = useState<MediaItem[]>(initialPhotos || []);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 8 },
+        }),
+        useSensor(TouchSensor, {
+            // iOS/Safari: delay ajuda a não conflitar com scroll/toque
+            activationConstraint: {
+                delay: 120,
+                tolerance: 8,
+            },
+        })
+    );
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -110,14 +121,31 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
         </div>
     );
 };
-
 function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: number | string) => void }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(photo.id) });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+        useSortable({ id: String(photo.id) });
+
     return (
-        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 }} {...attributes} {...listeners} className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50">
+        <div
+            ref={setNodeRef}
+            style={{
+                transform: CSS.Transform.toString(transform),
+                transition,
+                zIndex: isDragging ? 50 : 0,
+                touchAction: 'none', // ✅ essencial no mobile
+            }}
+            {...attributes}
+            {...listeners}
+            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50"
+        >
             <img src={photo.url} className="w-full h-full object-cover" alt="" draggable={false} />
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-start justify-end p-2 transition-opacity">
-                <button onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }} className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"><FaTrash size={12} /></button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
+                    className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
+                >
+                    <FaTrash size={12} />
+                </button>
             </div>
         </div>
     );
