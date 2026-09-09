@@ -1,32 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
 import { saveUserProfile, getUserProfile, updateUserProfile, saveAuditLogs } from '@/lib/db-operations';
 import { getUpdatedFields } from '@/lib/getUpdatedFields';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
+import { getAuthenticatedUser } from '@/lib/auth-user';
 
 export async function POST(request: NextRequest) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token');
+        const profileData = await request.json();
+        const session = await getAuthenticatedUser(request, profileData.viewAs);
 
-        if (!token) {
+        if (!session) {
             return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json({ message: 'Token inválido' }, { status: 401 });
-        }
-
-        const profileData = await request.json();
+        const userId = session.userId;
         // 1. Validar novos campos obrigatórios simplificados
         const requiredFields = ['nome', 'sexo', 'idade'];
         for (const field of requiredFields) {
@@ -88,39 +74,24 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token');
+        const session = await getAuthenticatedUser(request);
+        console.log('[DEBUG GET /api/user/profile] Session:', session);
 
-        if (!token) {
+        if (!session) {
+            console.log('[DEBUG GET /api/user/profile] Sem sessão - 401');
             return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json({ message: 'Token inválido' }, { status: 401 });
-        }
-
+        const userId = session.userId;
         const profile = await getUserProfile(userId);
+        console.log(`[DEBUG GET /api/user/profile] userId: ${userId}, profile:`, profile ? profile.nome : 'null');
 
-        if (!profile) {
-            return NextResponse.json(
-                { message: 'Perfil não encontrado' },
-                { status: 404 }
-            );
-        }
-
-        // Como não temos mais arrays complexos, não precisamos de JSON.parse
-        return NextResponse.json({ data: profile });
+        // Se o perfil ainda não existe no banco (primeiro acesso), retorna null com status 200
+        return NextResponse.json({ data: profile || null });
     } catch (error) {
-        console.error('Erro ao buscar perfil:', error);
+        console.error('[DEBUG GET /api/user/profile] Erro ao buscar perfil:', error);
         return NextResponse.json(
             { message: 'Erro interno do servidor' },
             { status: 500 }

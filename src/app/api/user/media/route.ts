@@ -1,38 +1,21 @@
 import { NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
 import { saveMedia, getMediaByUserId, getMediaById, updateMediaPositions } from '@/lib/db-operations';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
+import { getAuthenticatedUser } from '@/lib/auth-user';
 
 export async function POST(request: Request) {
     try {
-        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
+        const body = await request.json();
+        const session = await getAuthenticatedUser(request, body.viewAs);
 
-        const token = cookieStore.get('auth_token');
-
-        if (!token) {
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
-        const { type, thumbnail, url, position } = await request.json();
+        const userId = session.userId;
+        const { type, thumbnail, url, position } = body;
 
         if (!type || !url || position === undefined) {
             return NextResponse.json(
@@ -42,9 +25,7 @@ export async function POST(request: Request) {
         }
 
         const result = await saveMedia(userId, type, thumbnail, url, position);
-
-
-        const data = await getMediaById(result.insertId)
+        const data = await getMediaById(result.insertId);
 
         return NextResponse.json({ success: true, data: data });
     } catch (error) {
@@ -56,32 +37,18 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const cookieStore = await cookies(); // Aguarda a Promise dos cookies
-        const token = cookieStore.get('auth_token');
+        const session = await getAuthenticatedUser(request);
 
-        if (!token) {
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
+        const userId = session.userId;
         const media = await getMediaByUserId(userId);
 
         return NextResponse.json({ media });
@@ -96,31 +63,18 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token');
+        const body = await request.json();
+        const session = await getAuthenticatedUser(request, body.viewAs);
 
-        if (!token) {
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
-        const { mediaPositions } = await request.json();
+        const userId = session.userId;
+        const { mediaPositions } = body;
 
         if (!Array.isArray(mediaPositions)) {
             return NextResponse.json(
@@ -139,4 +93,4 @@ export async function PUT(request: Request) {
             { status: 500 }
         );
     }
-} 
+}

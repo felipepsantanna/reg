@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getUserProfile } from '@/lib/db-operations';
 import { stringToSlug } from '@/lib/string-operations';
+import { getAuthenticatedUser } from '@/lib/auth-user';
 import sharp from 'sharp';
 import _path from 'path';
 import fs from 'fs/promises'
@@ -17,6 +15,7 @@ export async function POST(request: Request) {
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
+        const viewAsForm = formData.get('viewAs') as string | null;
         const contentType = file.type || "";
         const isVideo = contentType.startsWith('video/');
 
@@ -26,35 +25,22 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token');
 
-        if (!token) {
+        const session = await getAuthenticatedUser(request, viewAsForm);
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
+        const userId = session.userId;
 
         if (!isVideo) {
             const user = await getUserProfile(userId);
-            const path = `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`;
-
+            const path = (user?.sexo && user?.nome)
+                ? `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`
+                : `perfil/${userId}`;
 
             const imageResp = await uploadToBunnyStorage(file as File, path);
             return NextResponse.json(imageResp);

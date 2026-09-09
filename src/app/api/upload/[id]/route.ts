@@ -1,48 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
 import { getMediaById, deleteMediaById } from '@/lib/db-operations';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
+import { getAuthenticatedUser } from '@/lib/auth-user';
 
 interface RouteContext {
     params: Promise<{ id: string }>;
 }
 
 export async function DELETE(
-    _request: NextRequest,
+    request: NextRequest,
     context: RouteContext
 ) {
     try {
         const { id } = await context.params;
 
-        const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token');
+        const session = await getAuthenticatedUser(request);
 
-        if (!token) {
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
-                { status: 401 }
-            );
-        }
-
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-
-            if (!userId || userId === 0) {
-                return NextResponse.json(
-                    { message: 'Token inválido' },
-                    { status: 401 }
-                );
-            }
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
                 { status: 401 }
             );
         }
@@ -50,7 +25,7 @@ export async function DELETE(
         try {
             const media = await getMediaById(Number(id));
 
-            if (media && media.user_id === userId) {
+            if (media && (media.user_id === session.userId || session.isAdmin)) {
                 if (media.type === 'image') {
                     const storageHost = process.env.BUNNY_STORAGE_HOST!;
                     const storageName = process.env.BUNNY_STORAGE_NAME!;
