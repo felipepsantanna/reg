@@ -16,10 +16,11 @@ import { MediaItem } from '@/types/MediaItem';
 import { FaVideo, FaTrash } from 'react-icons/fa';
 import { uploadToBunnyCDN } from '@/lib/uploadBunny';
 
-export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => {
+export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[]; viewAs?: string | null }) => {
     const [videos, setVideos] = useState<MediaItem[]>(initialVideos || []);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -45,14 +46,15 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
                 const videoData = await uploadToBunnyCDN(file, file.type);
                 if (!videoData?.url) throw new Error('Erro no upload');
 
-                const dbRes = await fetch('/api/user/media', {
+                const dbRes = await fetch(`/api/user/media${query}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         type: 'video',
                         url: videoData.url,
                         thumbnail: videoData.thumbnail || videoData.url,
-                        position: videos.length, // mantendo sua lógica atual
+                        position: videos.length,
+                        viewAs: viewAs || undefined
                     }),
                 });
 
@@ -81,7 +83,7 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
         if (!confirm('Excluir este vídeo?')) return;
 
         try {
-            const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/upload/${id}${query}`, { method: 'DELETE' });
             if (res.ok) setVideos((prev) => prev.filter((v) => String(v.id) !== String(id)));
         } catch (err) {
             alert('Erro ao excluir');
@@ -101,10 +103,10 @@ export const VideosTab = ({ initialVideos }: { initialVideos: MediaItem[] }) => 
 
         const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
 
-        fetch('/api/user/media', {
+        fetch(`/api/user/media${query}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mediaPositions }),
+            body: JSON.stringify({ mediaPositions, viewAs: viewAs || undefined }),
         });
     }
 
@@ -155,9 +157,29 @@ function SortableVideo({
     video: MediaItem;
     onDelete: (id: number | string) => void;
 }) {
+    const [posterError, setPosterError] = useState(false);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: String(video.id),
     });
+
+    const cdnHost = 'https://vz-ddb4a7c6-db0.b-cdn.net';
+
+    // Determina a URL da capa (poster)
+    const posterUrl = video.thumbnail?.startsWith('http')
+        ? video.thumbnail
+        : video.url?.startsWith('http')
+            ? video.thumbnail
+            : `${cdnHost}/${video.url}/thumbnail.jpg`;
+
+    // Determina as URLs de reprodução do vídeo
+    const isExternal = video.url?.startsWith('http');
+    const videoSources = isExternal
+        ? [{ src: video.url, type: 'video/mp4' }]
+        : [
+            { src: `${cdnHost}/${video.url}/play_720p.mp4`, type: 'video/mp4' },
+            { src: `${cdnHost}/${video.url}/play_480p.mp4`, type: 'video/mp4' },
+            { src: `${cdnHost}/${video.url}/play_360p.mp4`, type: 'video/mp4' },
+        ];
 
     return (
         <div
@@ -170,15 +192,38 @@ function SortableVideo({
             }}
             {...attributes}
             {...listeners}
-            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50"
+            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-900 cursor-grab border border-gray-100"
         >
+            {/* Pré-validação da thumbnail para detectar se ainda está em processamento no CDN */}
+            <img
+                src={posterUrl}
+                alt=""
+                className="hidden"
+                onError={() => setPosterError(true)}
+                onLoad={() => setPosterError(false)}
+            />
+
             <video
-                src={video.url}
+                poster={posterError ? undefined : posterUrl}
                 className="w-full h-full object-cover"
                 controls
                 playsInline
                 preload="metadata"
-            />
+            >
+                {videoSources.map((source, index) => (
+                    <source key={index} src={source.src} type={source.type} />
+                ))}
+                Seu navegador não suporta a reprodução deste vídeo.
+            </video>
+
+            {/* Aviso visual caso o vídeo ainda esteja em processamento no Bunny CDN */}
+            {posterError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 text-white p-3 text-center pointer-events-none">
+                    <FaVideo className="text-indigo-400 text-2xl mb-2 animate-pulse" />
+                    <span className="text-xs font-bold text-gray-200">Processando vídeo...</span>
+                    <span className="text-[10px] text-gray-400 mt-1 leading-tight">A capa e a reprodução estarão disponíveis assim que a Bunny concluir o processamento.</span>
+                </div>
+            )}
 
             {/* ✅ No mobile não existe hover: deixamos sempre visível; no desktop aparece no hover */}
             <div
@@ -196,7 +241,7 @@ function SortableVideo({
                         e.stopPropagation();
                         onDelete(video.id);
                     }}
-                    className="pointer-events-auto bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
+                    className="pointer-events-auto bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors shadow-sm"
                     aria-label="Excluir vídeo"
                     title="Excluir"
                 >

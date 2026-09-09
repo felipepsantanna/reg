@@ -7,10 +7,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
 import { FaCloudUploadAlt, FaTrash } from 'react-icons/fa';
 
-export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => {
+export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[]; viewAs?: string | null }) => {
     const [photos, setPhotos] = useState<MediaItem[]>(initialPhotos || []);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: { distance: 8 },
@@ -36,19 +38,21 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('type', 'image');
+                if (viewAs) formData.append('viewAs', viewAs);
 
-                const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
+                const uploadRes = await fetch(`/api/upload${query}`, { method: 'POST', body: formData });
                 const uploadData = await uploadRes.json();
                 if (!uploadRes.ok) throw new Error(uploadData.error || 'Erro no upload');
 
-                const dbRes = await fetch('/api/user/media', {
+                const dbRes = await fetch(`/api/user/media${query}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         type: 'image',
                         url: uploadData.url,
                         thumbnail: uploadData.thumbnail,
-                        position: photos.length // Nota: a posição ideal seria calculada pelo estado atualizado
+                        position: photos.length,
+                        viewAs: viewAs || undefined
                     })
                 });
 
@@ -73,11 +77,10 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // ... handleDragEnd e handleDelete mantidos das versões anteriores ...
     const handleDelete = async (id: number | string) => {
         if (!confirm('Excluir esta foto?')) return;
         try {
-            const res = await fetch(`/api/upload/${id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/upload/${id}${query}`, { method: 'DELETE' });
             if (res.ok) setPhotos(prev => prev.filter(p => p.id !== id));
         } catch (err) { alert('Erro ao excluir'); }
     };
@@ -90,7 +93,11 @@ export const PhotosTab = ({ initialPhotos }: { initialPhotos: MediaItem[] }) => 
             const newOrder = arrayMove(photos, oldIndex, newIndex);
             setPhotos(newOrder);
             const mediaPositions = newOrder.map((item, index) => ({ id: item.id, position: index }));
-            fetch('/api/user/media', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mediaPositions }) });
+            fetch(`/api/user/media${query}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mediaPositions, viewAs: viewAs || undefined })
+            });
         }
     }
 

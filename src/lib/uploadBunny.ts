@@ -3,7 +3,7 @@ export interface MediaApiResponse {
     url: string;
 }
 
-export async function uploadToBunnyCDN(file: File, contentType: string): Promise<MediaApiResponse> {
+export async function uploadToBunnyCDN(file: File, _contentType?: string): Promise<MediaApiResponse> {
 
     const libraryId = process.env.NEXT_PUBLIC_BUNNY_LIBRARY_ID;
     const accessKey = process.env.NEXT_PUBLIC_BUNNY_ACCESS_KEY;
@@ -44,7 +44,7 @@ export async function uploadToBunnyCDN(file: File, contentType: string): Promise
             headers: {
                 'Accept': 'application/json',
                 'AccessKey': accessKey,
-                'Content-Type': contentType
+                'Content-Type': 'application/octet-stream'
             },
             body: file
         });

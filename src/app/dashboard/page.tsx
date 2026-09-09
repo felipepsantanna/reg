@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileTab } from '@/components/dashboard/ProfileTab';
 import { PhotosTab } from '@/components/dashboard/PhotosTab';
 import { VideosTab } from '@/components/dashboard/VideosTab';
 import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
-import { FaSignOutAlt, FaGem } from 'react-icons/fa';
+import { FaSignOutAlt, FaGem, FaArrowLeft } from 'react-icons/fa';
 
-export default function DashboardPage() {
+function DashboardContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const viewAs = searchParams.get('viewAs');
+    const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
+
     const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos'>('profile');
     const [userData, setUserData] = useState<UserProfileData>({
         nome: '', sexo: '', idade: '', telefone: '', descricao: '',
@@ -24,8 +28,8 @@ export default function DashboardPage() {
         async function fetchDashboardData() {
             try {
                 const [profileRes, mediaRes] = await Promise.all([
-                    fetch('/api/user/profile'),
-                    fetch('/api/user/media')
+                    fetch(`/api/user/profile${query}`),
+                    fetch(`/api/user/media${query}`)
                 ]);
                 const profileJson = await profileRes.json();
                 const mediaJson = await mediaRes.json();
@@ -43,9 +47,13 @@ export default function DashboardPage() {
             }
         }
         fetchDashboardData();
-    }, []);
+    }, [query]);
 
     const handleLogout = async () => {
+        if (viewAs) {
+            router.push('/admin');
+            return;
+        }
         try {
             const res = await fetch('/api/auth/logout', { method: 'POST' });
             if (res.ok) router.push('/login');
@@ -58,7 +66,7 @@ export default function DashboardPage() {
         e.preventDefault();
         setSaveLoading(true);
         try {
-            await fetch('/api/user/profile', {
+            await fetch(`/api/user/profile${query}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -66,7 +74,8 @@ export default function DashboardPage() {
                     idade: userData.idade,
                     sexo: userData.sexo,
                     telefone: userData.telefone,
-                    descricao: userData.descricao
+                    descricao: userData.descricao,
+                    viewAs: viewAs || undefined
                 }),
             });
             alert('Perfil atualizado!');
@@ -83,7 +92,29 @@ export default function DashboardPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
-            <header className="fixed top-0 left-0 right-0 h-20 bg-white border-b border-gray-100 z-50 px-4 md:px-8 shadow-sm">
+            {viewAs && (
+                <div className="bg-indigo-900 text-white text-xs py-2 px-4 fixed top-0 left-0 right-0 z-[60] shadow-sm">
+                    <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 font-medium">
+                            <span className="bg-indigo-600 text-white font-black px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                Modo Admin
+                            </span>
+                            <span>
+                                Visualizando dashboard do usuário <strong>#{viewAs}</strong>
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => router.push('/admin')}
+                            className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-1 rounded-lg transition-all text-xs flex items-center gap-1.5"
+                        >
+                            <FaArrowLeft size={10} />
+                            Voltar ao Painel Admin
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <header className={`fixed ${viewAs ? 'top-8' : 'top-0'} left-0 right-0 h-20 bg-white border-b border-gray-100 z-50 px-4 md:px-8 shadow-sm transition-all`}>
                 <div className="max-w-7xl mx-auto h-full flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2 shrink-0">
                         <div className="bg-indigo-600 p-2 rounded-lg text-white">
@@ -102,12 +133,12 @@ export default function DashboardPage() {
 
                     <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-500 font-bold text-sm transition-all shrink-0">
                         <FaSignOutAlt />
-                        <span className="hidden md:inline">Sair</span>
+                        <span className="hidden md:inline">{viewAs ? 'Voltar' : 'Sair'}</span>
                     </button>
                 </div>
             </header>
 
-            <main className="flex-1 pt-24 pb-12 px-4 md:px-8">
+            <main className={`flex-1 ${viewAs ? 'pt-32' : 'pt-24'} pb-12 px-4 md:px-8`}>
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-6">
                         {activeTab === 'profile' && (
@@ -118,8 +149,8 @@ export default function DashboardPage() {
                                 loading={saveLoading}
                             />
                         )}
-                        {activeTab === 'photos' && <PhotosTab initialPhotos={userData.photos} />}
-                        {activeTab === 'videos' && <VideosTab initialVideos={userData.videos} />}
+                        {activeTab === 'photos' && <PhotosTab initialPhotos={userData.photos} viewAs={viewAs} />}
+                        {activeTab === 'videos' && <VideosTab initialVideos={userData.videos} viewAs={viewAs} />}
                     </div>
 
                     <aside className="lg:col-span-1">
@@ -130,6 +161,18 @@ export default function DashboardPage() {
                 </div>
             </main>
         </div>
+    );
+}
+
+export default function DashboardPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen items-center justify-center bg-[#F8FAFC]">
+                <div className="text-indigo-600 font-bold animate-pulse text-xl">Carregando painel...</div>
+            </div>
+        }>
+            <DashboardContent />
+        </Suspense>
     );
 }
 
