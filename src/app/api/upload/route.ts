@@ -4,7 +4,8 @@ import { stringToSlug } from '@/lib/string-operations';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import sharp from 'sharp';
 import _path from 'path';
-import fs from 'fs/promises'
+import fs from 'fs/promises';
+import crypto from 'crypto';
 
 export interface MediaApiResponse {
     thumbnail: string;
@@ -66,7 +67,14 @@ export async function POST(request: Request) {
     }
 }
 
-
+/**
+ * Gera um nome de arquivo baseado no hash SHA-256 do buffer original.
+ * Ambas as versões (original e com logo) usam o mesmo nome, diferenciadas apenas pelo path.
+ */
+function gerarNomeArquivo(buffer: Buffer): string {
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    return `${hash.substring(0, 12)}.webp`;
+}
 
 const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiResponse> => {
     // Dados do Bunny Storage
@@ -75,15 +83,40 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     const accessKey = process.env.BUNNY_STORAGE_ACCESS!;
     const pullZoneUrl = "capitalsexy.b-cdn.net";
 
-    const uploadUrl = `${storageHost}/${storageName}/${path}/${file.name}`;
-
     const bytes = await file.arrayBuffer();
     const bufferOriginal = Buffer.from(bytes);
 
+    // Gerar nome de arquivo baseado no hash do conteúdo original
+    const nomeArquivo = gerarNomeArquivo(bufferOriginal);
+
+    // ── 1. Upload do arquivo original (sem marca d'água) ──────────────────────
+    // Path: {path}/originais/{hash}.webp — nunca exposto no site
+    const uploadUrlOriginal = `${storageHost}/${storageName}/${path}/originais/${nomeArquivo}`;
+    const uploadOriginalResp = await fetch(uploadUrlOriginal, {
+        method: 'PUT',
+        headers: {
+            'AccessKey': accessKey,
+            'Content-Type': 'application/octet-stream',
+            'accept': 'application/json',
+        },
+        body: bufferOriginal,
+    });
+
+
+    if (!uploadOriginalResp.ok) {
+        const errText = await uploadOriginalResp.text();
+        console.error(`Falha ao salvar original no Bunny: ${uploadOriginalResp.status} — ${errText}`);
+        // Não lançamos erro aqui para não bloquear o upload principal
+    } else {
+        console.log(`Original salvo em: ${path}/originais/${nomeArquivo}`);
+    }
+
+    // ── 2. Aplicar marcas d'água ──────────────────────────────────────────────
     const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
     const watermarkAllPath = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
     const bufferMarcaDaguaCenter = await fs.readFile(watermarkAllPath);
+
     let resizeOptions = {};
     const metadata = await sharp(bufferOriginal).metadata();
     console.log(metadata);
@@ -100,7 +133,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         };
     }
     else {
-        console.log('height: ' + metadata.width!);
+        console.log('width: ' + metadata.width!);
         resizeOptions = {
             width: 615,
             // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
@@ -111,7 +144,8 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
         }
     };
-    console.log('metadata gerada')
+
+    console.log('metadata gerada');
     const bufferComPrimeiraMarca = await sharp(bufferOriginal)
         .resize(resizeOptions)
         .composite([{
@@ -119,6 +153,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             gravity: 'southeast'
         }])
         .toBuffer();
+
 
     console.log('Primeira marca d\'água (canto) aplicada.');
 
@@ -135,16 +170,20 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         .toBuffer();
     console.log('Marca d\'água central redimensionada para cobrir a imagem.');
 
-    // Finalmente, compor a segunda marca d'água (redimensionada) sobre o resultado anterior
+    // Composição final: segunda marca d'água (centralizada e redimensionada)
     const bufferFinal = await sharp(bufferComPrimeiraMarca)
         .composite([{
             input: bufferMarcaDaguaCenterRedimensionada,
-            gravity: 'center' // 'gravity' aqui é opcional, pois as imagens têm o mesmo tamanho
+            gravity: 'center'
         }])
         .toBuffer();
 
+    // ── 3. Upload da versão com marca d'água ──────────────────────────────────
+    // Path: {path}/{hash}.webp — URL exibida no site, mesmo nome do original
+    const uploadUrlComLogo = `${storageHost}/${storageName}/${path}/${nomeArquivo}`;
+
     try {
-        const uploadResponse = await fetch(`${uploadUrl}`, {
+        const uploadResponse = await fetch(uploadUrlComLogo, {
             method: 'PUT',
             headers: {
                 'AccessKey': accessKey,
@@ -154,12 +193,13 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             body: bufferFinal,
         });
 
-        console.log(uploadResponse)
+        console.log(uploadResponse);
 
         if (!uploadResponse.ok) {
             throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
         }
-        const publicUrl = `https://${pullZoneUrl}/${path}/${file.name}`;
+
+        const publicUrl = `https://${pullZoneUrl}/${path}/${nomeArquivo}`;
 
         const response = {
             thumbnail: publicUrl,

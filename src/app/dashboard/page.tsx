@@ -9,6 +9,7 @@ import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
 import { FaSignOutAlt, FaGem, FaArrowLeft } from 'react-icons/fa';
+import { Toaster } from 'sonner';
 
 function DashboardContent() {
     const router = useRouter();
@@ -92,6 +93,7 @@ function DashboardContent() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+            <Toaster position="bottom-center" richColors />
             {viewAs && (
                 <div className="bg-indigo-900 text-white text-xs py-2 px-4 fixed top-0 left-0 right-0 z-[60] shadow-sm">
                     <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">

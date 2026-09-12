@@ -32,9 +32,11 @@ export async function DELETE(
                     const accessKeyCDN = process.env.BUNNY_STORAGE_ACCESS!;
                     const replacedUrl = process.env.BUNNY_STORAGE_URL!;
 
-                    const path = media.url.replace(replacedUrl, "");
-                    const deleteImageUrl = `${storageHost}/${storageName}/${path}`;
+                    // Path da versão com logo: ex. feminino/nome/a3f8c1d2.webp
+                    const pathComLogo = media.url.replace(replacedUrl, "");
 
+                    // ── Deletar versão com logo ───────────────────────────────
+                    const deleteImageUrl = `${storageHost}/${storageName}/${pathComLogo}`;
                     const deleteImageResp = await fetch(deleteImageUrl, {
                         method: 'DELETE',
                         headers: {
@@ -44,6 +46,29 @@ export async function DELETE(
 
                     if (!deleteImageResp.ok) {
                         throw new Error('Erro na hora de remover a imagem no Bunny');
+                    }
+
+                    // ── Deletar versão original (sem logo) ────────────────────
+                    // Deriva o path inserindo "originais/" antes do filename
+                    // ex: feminino/nome/a3f8c1d2.webp → feminino/nome/originais/a3f8c1d2.webp
+                    const lastSlash = pathComLogo.lastIndexOf('/');
+                    const dir = pathComLogo.substring(0, lastSlash);       // feminino/nome
+                    const filename = pathComLogo.substring(lastSlash + 1); // a3f8c1d2.webp
+                    const pathOriginal = `${dir}/originais/${filename}`;
+
+                    const deleteOriginalUrl = `${storageHost}/${storageName}/${pathOriginal}`;
+                    const deleteOriginalResp = await fetch(deleteOriginalUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            'AccessKey': accessKeyCDN,
+                        },
+                    });
+
+                    if (!deleteOriginalResp.ok) {
+                        // Não bloqueia — o original pode não existir em fotos antigas
+                        console.warn(`Aviso: não foi possível remover o original ${pathOriginal}: ${deleteOriginalResp.statusText}`);
+                    } else {
+                        console.log(`Original removido: ${pathOriginal}`);
                     }
                 } else {
                     const libraryId = process.env.BUNNY_LIBRARY_ID;
