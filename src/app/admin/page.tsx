@@ -7,11 +7,13 @@ import {
     FaTimes,
     FaKey,
     FaExternalLinkAlt,
-    FaCopy
+    FaCopy,
+    FaDownload
 } from 'react-icons/fa';
 import {
     HiOutlinePhotograph,
-    HiOutlineVideoCamera
+    HiOutlineVideoCamera,
+    HiOutlineDownload
 } from 'react-icons/hi';
 import { toast, Toaster } from 'sonner';
 
@@ -27,6 +29,13 @@ interface User {
     video_count: number;
 }
 
+interface OriginalPhoto {
+    id: number;
+    position: number;
+    url_com_logo: string;
+    url_original: string;
+}
+
 export default function AdminPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,6 +45,11 @@ export default function AdminPage() {
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
     const [newPassword, setNewPassword] = useState('');
+
+    const [isOriginaisModalOpen, setIsOriginaisModalOpen] = useState(false);
+    const [originaisNome, setOriginaisNome] = useState('');
+    const [originaisData, setOriginaisData] = useState<OriginalPhoto[]>([]);
+    const [originaisLoading, setOriginaisLoading] = useState(false);
 
     const router = useRouter();
 
@@ -138,6 +152,57 @@ export default function AdminPage() {
             toast.error(err.message || 'Erro ao salvar senha', { id: toastId });
         }
         // O TS agora entende que todos os caminhos (if, try e catch) estão cobertos
+    };
+
+    const handleVerOriginais = async (userId: number, nome: string) => {
+        setOriginaisNome(nome);
+        setOriginaisData([]);
+        setIsOriginaisModalOpen(true);
+        setOriginaisLoading(true);
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/originais`);
+            const data = await res.json();
+            if (res.ok) {
+                setOriginaisData(data.data ?? []);
+            } else {
+                toast.error(data.error || 'Erro ao buscar fotos originais');
+            }
+        } catch {
+            toast.error('Erro ao buscar fotos originais');
+        } finally {
+            setOriginaisLoading(false);
+        }
+    };
+
+    const handleDownloadFoto = async (url: string, filename: string) => {
+        try {
+            // Proxy server-side para evitar bloqueio de CORS ao baixar do CDN
+            const proxyUrl = `/api/admin/download?url=${encodeURIComponent(url)}`;
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objectUrl);
+        } catch (err: any) {
+            toast.error('Erro ao baixar foto', { description: err.message });
+        }
+    };
+
+    const handleDownloadTodas = async () => {
+        const toastId = toast.loading(`Baixando ${originaisData.length} fotos...`);
+        for (let i = 0; i < originaisData.length; i++) {
+            const foto = originaisData[i];
+            const filename = foto.url_original.split('/').pop() || `foto-${foto.id}.webp`;
+            await handleDownloadFoto(foto.url_original, filename);
+            await new Promise(r => setTimeout(r, 300));
+        }
+        toast.success('Download concluido!', { id: toastId });
     };
 
     const filtrados = users.filter(u => {
@@ -255,6 +320,7 @@ export default function AdminPage() {
                                             <button onClick={() => handleExportIframe(user.id)} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Copiar Iframe"><FaCopy size={13} /></button>
                                             <button onClick={() => window.open(`/dashboard?viewAs=${user.id}`, '_blank')} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Ver Dashboard"><FaExternalLinkAlt size={12} /></button>
                                             <button onClick={() => { setSelectedUserId(user.id); setIsPasswordModalOpen(true); }} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Senha"><FaKey size={13} /></button>
+                                            <button onClick={() => handleVerOriginais(user.id, user.nome)} className="p-2 text-slate-300 hover:text-indigo-500 rounded-lg transition-all" title="Fotos Originais"><HiOutlinePhotograph size={16} /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -279,6 +345,104 @@ export default function AdminPage() {
                         <div className="flex gap-2">
                             <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-all">Cancelar</button>
                             <button onClick={handleChangePassword} className="flex-1 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-md">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isOriginaisModalOpen && (
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-[3px] z-50 flex items-center justify-center p-4"
+                    onClick={() => setIsOriginaisModalOpen(false)}
+                >
+                    <div
+                        className="bg-white border border-slate-100 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-sm font-bold tracking-tight text-slate-800">Fotos Originais</h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">{originaisNome}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {originaisData.length > 0 && (
+                                    <button
+                                        onClick={handleDownloadTodas}
+                                        className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all"
+                                    >
+                                        <HiOutlineDownload size={14} />
+                                        Baixar todas ({originaisData.length})
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setIsOriginaisModalOpen(false)}
+                                    className="p-1.5 text-slate-300 hover:text-slate-600 rounded-lg transition-all"
+                                >
+                                    <FaTimes size={13} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="overflow-y-auto p-6 flex-1">
+                            {originaisLoading && (
+                                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                                    <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Carregando</p>
+                                </div>
+                            )}
+
+                            {!originaisLoading && originaisData.length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-48 gap-2">
+                                    <HiOutlinePhotograph size={32} className="text-slate-200" />
+                                    <p className="text-sm text-slate-400">Nenhuma foto original encontrada</p>
+                                    <p className="text-[11px] text-slate-300">Fotos enviadas antes desta funcionalidade nao possuem original salvo</p>
+                                </div>
+                            )}
+
+                            {!originaisLoading && originaisData.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                    {originaisData.map((foto) => {
+                                        const filename = foto.url_original.split('/').pop() || `foto-${foto.id}.webp`;
+                                        return (
+                                            <div key={foto.id} className="group relative rounded-xl overflow-hidden bg-slate-50 border border-slate-100 aspect-square">
+                                                <img
+                                                    src={foto.url_original}
+                                                    alt={`Foto original ${foto.id}`}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                    onError={(e) => {
+                                                        const target = e.currentTarget;
+                                                        target.style.display = 'none';
+                                                        const parent = target.parentElement;
+                                                        if (parent) {
+                                                            const placeholder = document.createElement('div');
+                                                            placeholder.className = 'flex items-center justify-center w-full h-full';
+                                                            placeholder.innerHTML = '<span class="text-[10px] text-slate-300 text-center px-2">Original nao disponivel</span>';
+                                                            parent.appendChild(placeholder);
+                                                        }
+                                                    }}
+                                                />
+                                                {/* Overlay de download no hover */}
+                                                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-all flex items-center justify-center">
+                                                    <button
+                                                        onClick={() => handleDownloadFoto(foto.url_original, filename)}
+                                                        className="opacity-0 group-hover:opacity-100 transition-all bg-white/90 hover:bg-white text-slate-700 p-2 rounded-lg shadow-md"
+                                                        title="Baixar foto original"
+                                                    >
+                                                        <FaDownload size={12} />
+                                                    </button>
+                                                </div>
+                                                {/* Numero da posicao */}
+                                                <div className="absolute top-1.5 left-1.5 bg-slate-900/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                                    #{foto.position + 1}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

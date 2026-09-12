@@ -6,10 +6,12 @@ import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@d
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
 import { FaCloudUploadAlt, FaTrash } from 'react-icons/fa';
+import { toast } from 'sonner';
 
 export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[]; viewAs?: string | null }) => {
     const [photos, setPhotos] = useState<MediaItem[]>(initialPhotos || []);
     const [uploading, setUploading] = useState(false);
+    const [uploadingCount, setUploadingCount] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
 
@@ -32,8 +34,13 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
 
         setUploading(true);
         const fileArray = Array.from(files);
+        setUploadingCount(fileArray.length);
+
+        let successCount = 0;
+        let errorCount = 0;
 
         for (const file of fileArray) {
+            const toastId = toast.loading(`Enviando ${file.name}...`);
             try {
                 const formData = new FormData();
                 formData.append('file', file);
@@ -68,12 +75,22 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
                 };
 
                 setPhotos(prev => [...prev, newPhoto]);
+                setUploadingCount(prev => Math.max(0, prev - 1));
+                successCount++;
+                toast.success('Foto enviada!', { id: toastId });
             } catch (err: any) {
+                errorCount++;
+                setUploadingCount(prev => Math.max(0, prev - 1));
                 console.error(`Erro ao enviar ${file.name}:`, err.message);
+                toast.error(`Falha ao enviar ${file.name}`, {
+                    id: toastId,
+                    description: err.message,
+                });
             }
         }
 
         setUploading(false);
+        setUploadingCount(0);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -108,10 +125,10 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
                 <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400"
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
                 >
                     <FaCloudUploadAlt />
-                    {uploading ? 'Enviando...' : 'Adicionar Fotos'}
+                    {uploading ? `Enviando...` : 'Adicionar Fotos'}
                 </button>
                 <input type="file" ref={fileInputRef} onChange={handleUpload} accept="image/*" multiple className="hidden" />
             </div>
@@ -121,6 +138,18 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {photos.map((photo) => (
                             <SortablePhoto key={photo.id} photo={photo} onDelete={handleDelete} />
+                        ))}
+                        {/* Skeletons de loading para cada foto em envio */}
+                        {Array.from({ length: uploadingCount }).map((_, i) => (
+                            <div
+                                key={`skeleton-${i}`}
+                                className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-50 animate-pulse"
+                            >
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                                    <div className="w-6 h-6 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                                    <span className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Enviando</span>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </SortableContext>
