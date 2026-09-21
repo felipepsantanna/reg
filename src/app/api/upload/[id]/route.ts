@@ -30,10 +30,16 @@ export async function DELETE(
                     const storageHost = process.env.BUNNY_STORAGE_HOST!;
                     const storageName = process.env.BUNNY_STORAGE_NAME!;
                     const accessKeyCDN = process.env.BUNNY_STORAGE_ACCESS!;
-                    const replacedUrl = process.env.BUNNY_STORAGE_URL!;
-
                     // Path da versão com logo: ex. feminino/nome/a3f8c1d2.webp
-                    const pathComLogo = media.url.replace(replacedUrl, "");
+                    // Extrai de forma resiliente o pathname da URL para suportar tanto o CDN atual quanto domínios legados
+                    let pathComLogo = media.url;
+                    try {
+                        const parsedUrl = new URL(media.url);
+                        pathComLogo = decodeURIComponent(parsedUrl.pathname).replace(/^\/+/, '');
+                    } catch {
+                        const replacedUrl = process.env.BUNNY_STORAGE_URL || '';
+                        pathComLogo = media.url.replace(replacedUrl, '').replace(/^\/+/, '');
+                    }
 
                     // ── Deletar versão com logo ───────────────────────────────
                     const deleteImageUrl = `${storageHost}/${storageName}/${pathComLogo}`;
@@ -45,12 +51,16 @@ export async function DELETE(
                     });
 
                     if (!deleteImageResp.ok) {
-                        throw new Error('Erro na hora de remover a imagem no Bunny');
+                        if (deleteImageResp.status === 404) {
+                            console.warn(`Aviso: imagem não encontrada no Bunny para deleção (já ausente): ${pathComLogo}`);
+                        } else {
+                            throw new Error(`Erro na hora de remover a imagem no Bunny (${deleteImageResp.status})`);
+                        }
                     }
 
                     // ── Deletar versão original (sem logo) ────────────────────
-                    // Deriva o path inserindo "originais/" antes do filename
-                    // ex: feminino/nome/a3f8c1d2.webp → feminino/nome/originais/a3f8c1d2.webp
+                    // [DESATIVADO TEMPORARIAMENTE]: Mantendo originais preservados conforme solicitado.
+                    /*
                     const lastSlash = pathComLogo.lastIndexOf('/');
                     const dir = pathComLogo.substring(0, lastSlash);       // feminino/nome
                     const filename = pathComLogo.substring(lastSlash + 1); // a3f8c1d2.webp
@@ -70,6 +80,7 @@ export async function DELETE(
                     } else {
                         console.log(`Original removido: ${pathOriginal}`);
                     }
+                    */
                 } else {
                     const libraryId = process.env.BUNNY_LIBRARY_ID;
                     const accessKey = process.env.BUNNY_ACCESS_KEY;
