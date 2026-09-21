@@ -10,11 +10,16 @@ type FieldChange = {
 };
 
 // Funções para usuários
-export async function createUser(email: string, password: string) {
+export async function createUser(
+    email: string,
+    password: string,
+    role: 'admin' | 'anunciante' = 'anunciante',
+    status: 'ativo' | 'inativo' | 'primeiro acesso' = 'ativo'
+) {
     const hashedPassword = await hash(password, 10);
     const [result] = await pool.execute(
-        'INSERT INTO users (email, password) VALUES (?, ?)',
-        [email, hashedPassword]
+        'INSERT INTO users (email, password, role, status) VALUES (?, ?, ?, ?)',
+        [email, hashedPassword, role, status]
     ) as [ResultSetHeader, any];
     return result;
 }
