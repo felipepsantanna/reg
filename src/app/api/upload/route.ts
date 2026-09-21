@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import _path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
+import { getWatermarkFileName } from '@/lib/watermark';
 
 export interface MediaApiResponse {
     thumbnail: string;
@@ -39,11 +40,29 @@ export async function POST(request: Request) {
 
         if (!isVideo) {
             const user = await getUserProfile(userId);
+
+            if (!user?.sexo || !user.sexo.trim()) {
+                return NextResponse.json(
+                    { error: 'Por favor, selecione o sexo no seu perfil antes de enviar fotos.' },
+                    { status: 400 }
+                );
+            }
+
+            let watermarkFilename: string;
+            try {
+                watermarkFilename = getWatermarkFileName(user.sexo);
+            } catch (err: any) {
+                return NextResponse.json(
+                    { error: err.message || 'Por favor, selecione um sexo válido no seu perfil antes de enviar fotos.' },
+                    { status: 400 }
+                );
+            }
+
             const path = (user?.sexo && user?.nome)
                 ? `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`
                 : `perfil/${userId}`;
 
-            const imageResp = await uploadToBunnyStorage(file as File, path);
+            const imageResp = await uploadToBunnyStorage(file as File, path, watermarkFilename);
             return NextResponse.json(imageResp);
         }
         else {
@@ -76,7 +95,7 @@ function gerarNomeArquivo(buffer: Buffer): string {
     return `${hash.substring(0, 12)}.webp`;
 }
 
-const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiResponse> => {
+const uploadToBunnyStorage = async (file: File, path: string, watermarkFilename: string): Promise<MediaApiResponse> => {
     // Dados do Bunny Storage
     const storageHost = process.env.BUNNY_STORAGE_HOST!;
     const storageName = process.env.BUNNY_STORAGE_NAME!;
@@ -112,7 +131,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
     }
 
     // ── 2. Aplicar marcas d'água ──────────────────────────────────────────────
-    const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
+    const watermarkPath = _path.resolve(process.cwd(), 'public', watermarkFilename);
     const watermarkAllPath = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
     const bufferMarcaDaguaCenter = await fs.readFile(watermarkAllPath);
