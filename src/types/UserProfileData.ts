@@ -5,6 +5,7 @@ export interface UserProfileData {
     sexo: string;
     idade: string;
     descricao: string;
+    email?: string;
     photos: MediaItem[];
     videos: MediaItem[];
 }

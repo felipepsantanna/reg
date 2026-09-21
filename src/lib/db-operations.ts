@@ -30,6 +30,13 @@ export async function getUserByEmail(email: string) {
     ) as [RowDataPacket[], any];
     return rows[0];
 }
+export async function getUserById(id: number) {
+    const [rows] = await pool.execute(
+        'SELECT id, email, role, status, created_at, updated_at FROM users WHERE id = ?',
+        [id]
+    ) as [RowDataPacket[], any];
+    return rows[0] || null;
+}
 export async function verifyPassword(password: string, hashedPassword: string) {
     return await compare(password, hashedPassword);
 }
