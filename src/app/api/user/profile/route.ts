@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveUserProfile, getUserProfile, updateUserProfile, saveAuditLogs } from '@/lib/db-operations';
+import { saveUserProfile, getUserProfile, updateUserProfile, saveAuditLogs, getUserById } from '@/lib/db-operations';
 import { getUpdatedFields } from '@/lib/getUpdatedFields';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 
@@ -85,11 +85,18 @@ export async function GET(request: NextRequest) {
         }
 
         const userId = session.userId;
-        const profile = await getUserProfile(userId);
+        const [profile, user] = await Promise.all([
+            getUserProfile(userId),
+            getUserById(userId)
+        ]);
         console.log(`[DEBUG GET /api/user/profile] userId: ${userId}, profile:`, profile ? profile.nome : 'null');
 
-        // Se o perfil ainda não existe no banco (primeiro acesso), retorna null com status 200
-        return NextResponse.json({ data: profile || null });
+        const profileData = profile
+            ? { ...profile, email: user?.email }
+            : (user ? { email: user.email } : null);
+
+        // Retorna o perfil com email de cadastro
+        return NextResponse.json({ data: profileData });
     } catch (error) {
         console.error('[DEBUG GET /api/user/profile] Erro ao buscar perfil:', error);
         return NextResponse.json(

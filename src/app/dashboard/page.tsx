@@ -19,7 +19,7 @@ function DashboardContent() {
 
     const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos'>('profile');
     const [userData, setUserData] = useState<UserProfileData>({
-        nome: '', sexo: '', idade: '', telefone: '', descricao: '',
+        nome: '', sexo: '', idade: '', telefone: '', descricao: '', email: '',
         photos: [], videos: []
     });
     const [loading, setLoading] = useState(true);
@@ -143,21 +143,28 @@ function DashboardContent() {
             <main className={`flex-1 ${viewAs ? 'pt-32' : 'pt-24'} pb-12 px-4 md:px-8`}>
                 <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-6">
-                        {activeTab === 'profile' && (
+                        <div className={activeTab === 'profile' ? 'block' : 'hidden'}>
                             <ProfileTab
                                 data={userData}
                                 onChange={(e) => setUserData({ ...userData, [e.target.name]: e.target.value })}
                                 onSave={handleSaveProfile}
                                 loading={saveLoading}
                             />
-                        )}
-                        {activeTab === 'photos' && <PhotosTab initialPhotos={userData.photos} viewAs={viewAs} />}
-                        {activeTab === 'videos' && <VideosTab initialVideos={userData.videos} viewAs={viewAs} />}
+                        </div>
+                        <div className={activeTab === 'photos' ? 'block' : 'hidden'}>
+                            <PhotosTab initialPhotos={userData.photos} viewAs={viewAs} />
+                        </div>
+                        <div className={activeTab === 'videos' ? 'block' : 'hidden'}>
+                            <VideosTab initialVideos={userData.videos} viewAs={viewAs} />
+                        </div>
                     </div>
 
                     <aside className="lg:col-span-1">
                         <div className="sticky top-24">
-                            <RegistrationSuccess userName={userData.nome || 'Anunciante'} />
+                            <RegistrationSuccess
+                                userName={userData.nome || 'Anunciante'}
+                                userEmail={userData.email}
+                            />
                         </div>
                     </aside>
                 </div>

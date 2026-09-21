@@ -5,7 +5,7 @@ import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSe
 import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
-import { FaCloudUploadAlt, FaTrash } from 'react-icons/fa';
+import { FaCloudUploadAlt, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'sonner';
 
 export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[]; viewAs?: string | null }) => {
@@ -96,10 +96,19 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
 
     const handleDelete = async (id: number | string) => {
         if (!confirm('Excluir esta foto?')) return;
+        const toastId = toast.loading('Excluindo foto...');
         try {
             const res = await fetch(`/api/upload/${id}${query}`, { method: 'DELETE' });
-            if (res.ok) setPhotos(prev => prev.filter(p => p.id !== id));
-        } catch (err) { alert('Erro ao excluir'); }
+            if (res.ok) {
+                setPhotos(prev => prev.filter(p => String(p.id) !== String(id)));
+                toast.success('Foto excluída com sucesso!', { id: toastId });
+            } else {
+                const data = await res.json().catch(() => ({}));
+                toast.error(data.error || data.message || 'Erro ao excluir', { id: toastId });
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao excluir', { id: toastId });
+        }
     };
 
     async function handleDragEnd(event: DragEndEvent) {
@@ -158,6 +167,7 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
     );
 };
 function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: number | string) => void }) {
+    const [hasError, setHasError] = useState(false);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
         useSortable({ id: String(photo.id) });
 
@@ -172,13 +182,28 @@ function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: n
             }}
             {...attributes}
             {...listeners}
-            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-50"
+            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-100 flex items-center justify-center"
         >
-            <img src={photo.url} className="w-full h-full object-cover" alt="" draggable={false} />
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-start justify-end p-2 transition-opacity">
+            {hasError ? (
+                <div className="flex flex-col items-center justify-center p-3 text-center gap-1.5 bg-gray-50 w-full h-full text-gray-400 select-none">
+                    <FaExclamationTriangle className="text-amber-500/80" size={22} />
+                    <span className="text-[11px] font-semibold text-gray-500">Foto ausente</span>
+                    <span className="text-[10px] text-gray-400">Clique na lixeira para excluir</span>
+                </div>
+            ) : (
+                <img
+                    src={photo.url}
+                    className="w-full h-full object-cover"
+                    alt=""
+                    draggable={false}
+                    onError={() => setHasError(true)}
+                />
+            )}
+            <div className={`absolute inset-0 bg-black/20 ${hasError ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} flex items-start justify-end p-2 transition-opacity pointer-events-none`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
-                    className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
+                    className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 pointer-events-auto transition-transform active:scale-95 shadow-sm"
+                    title="Excluir foto"
                 >
                     <FaTrash size={12} />
                 </button>

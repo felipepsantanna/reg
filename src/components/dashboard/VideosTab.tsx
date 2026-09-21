@@ -15,6 +15,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
 import { FaVideo, FaTrash } from 'react-icons/fa';
 import { uploadToBunnyCDN } from '@/lib/uploadBunny';
+import { toast } from 'sonner';
 
 export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[]; viewAs?: string | null }) => {
     const [videos, setVideos] = useState<MediaItem[]>(initialVideos || []);
@@ -81,12 +82,18 @@ export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[
 
     const handleDelete = async (id: number | string) => {
         if (!confirm('Excluir este vídeo?')) return;
-
+        const toastId = toast.loading('Excluindo vídeo...');
         try {
             const res = await fetch(`/api/upload/${id}${query}`, { method: 'DELETE' });
-            if (res.ok) setVideos((prev) => prev.filter((v) => String(v.id) !== String(id)));
-        } catch (err) {
-            alert('Erro ao excluir');
+            if (res.ok) {
+                setVideos((prev) => prev.filter((v) => String(v.id) !== String(id)));
+                toast.success('Vídeo excluído com sucesso!', { id: toastId });
+            } else {
+                const data = await res.json().catch(() => ({}));
+                toast.error(data.error || data.message || 'Erro ao excluir vídeo', { id: toastId });
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao excluir vídeo', { id: toastId });
         }
     };
 
