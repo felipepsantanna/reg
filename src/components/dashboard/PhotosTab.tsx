@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '@/types/MediaItem';
 import { FaCloudUploadAlt, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'sonner';
+import imageCompression from 'browser-image-compression';
 
 export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[]; viewAs?: string | null }) => {
     const [photos, setPhotos] = useState<MediaItem[]>(initialPhotos || []);
@@ -15,15 +16,16 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
     const fileInputRef = useRef<HTMLInputElement>(null);
     const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
 
+    // Separação de sensores: Mouse instantâneo (desktop) e Touch com delay (mobile)
+    // Permite que o scroll vertical nativo funcione sem conflito de drag acidental
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: { distance: 8 },
+        useSensor(MouseSensor, {
+            activationConstraint: { distance: 10 },
         }),
         useSensor(TouchSensor, {
-            // iOS/Safari: delay ajuda a não conflitar com scroll/toque
             activationConstraint: {
-                delay: 120,
-                tolerance: 8,
+                delay: 250,
+                tolerance: 5,
             },
         })
     );
@@ -42,8 +44,24 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
         for (const file of fileArray) {
             const toastId = toast.loading(`Enviando ${file.name}...`);
             try {
+                // Compressão prévia no navegador para dispositivos móveis
+                let fileToUpload = file;
+                if (file.type.startsWith('image/')) {
+                    try {
+                        fileToUpload = await imageCompression(file, {
+                            maxSizeMB: 1.5,
+                            maxWidthOrHeight: 1920,
+                            useWebWorker: true,
+                            initialQuality: 0.85,
+                        });
+                    } catch (compErr) {
+                        console.warn(`Compressão falhou para ${file.name}, usando original:`, compErr);
+                        fileToUpload = file;
+                    }
+                }
+
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', fileToUpload, file.name);
                 formData.append('type', 'image');
                 if (viewAs) formData.append('viewAs', viewAs);
 
@@ -166,6 +184,7 @@ export const PhotosTab = ({ initialPhotos, viewAs }: { initialPhotos: MediaItem[
         </div>
     );
 };
+
 function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: number | string) => void }) {
     const [hasError, setHasError] = useState(false);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -178,34 +197,39 @@ function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: n
                 transform: CSS.Transform.toString(transform),
                 transition,
                 zIndex: isDragging ? 50 : 0,
-                touchAction: 'none', // ✅ essencial no mobile
+                // Permite scroll vertical livre (pan-y) quando não está ativamente arrastando
+                touchAction: isDragging ? 'none' : 'pan-y',
             }}
             {...attributes}
             {...listeners}
-            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 cursor-grab border border-gray-100 flex items-center justify-center"
+            className={`group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 flex items-center justify-center transition-shadow select-none ${
+                isDragging ? 'scale-105 shadow-xl ring-2 ring-indigo-500 z-50' : 'cursor-grab'
+            }`}
         >
             {hasError ? (
                 <div className="flex flex-col items-center justify-center p-3 text-center gap-1.5 bg-gray-50 w-full h-full text-gray-400 select-none">
                     <FaExclamationTriangle className="text-amber-500/80" size={22} />
                     <span className="text-[11px] font-semibold text-gray-500">Foto ausente</span>
-                    <span className="text-[10px] text-gray-400">Clique na lixeira para excluir</span>
+                    <span className="text-[10px] text-gray-400">Toque na lixeira para excluir</span>
                 </div>
             ) : (
                 <img
                     src={photo.url}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover pointer-events-none"
                     alt=""
                     draggable={false}
                     onError={() => setHasError(true)}
                 />
             )}
-            <div className={`absolute inset-0 bg-black/20 ${hasError ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} flex items-start justify-end p-2 transition-opacity pointer-events-none`}>
+            {/* No mobile (touch), a lixeira fica sempre visível (opacity-100). No desktop, surge no hover */}
+            <div className={`absolute inset-0 bg-black/20 ${hasError ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} flex items-start justify-end p-2 transition-opacity pointer-events-none`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
-                    className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 pointer-events-auto transition-transform active:scale-95 shadow-sm"
+                    className="w-9 h-9 flex items-center justify-center bg-red-500 text-white rounded-xl hover:bg-red-600 pointer-events-auto transition-transform active:scale-95 shadow-md"
                     title="Excluir foto"
+                    aria-label="Excluir foto"
                 >
-                    <FaTrash size={12} />
+                    <FaTrash size={13} />
                 </button>
             </div>
         </div>

@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import {
     DndContext,
     closestCenter,
-    PointerSensor,
+    MouseSensor,
     TouchSensor,
     useSensor,
     useSensors,
@@ -23,14 +23,16 @@ export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[
     const fileInputRef = useRef<HTMLInputElement>(null);
     const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
 
+    // Separação de sensores: Mouse instantâneo (desktop) e Touch com delay (mobile)
+    // Permite que o scroll vertical nativo funcione sem conflito de drag acidental
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: { distance: 8 },
+        useSensor(MouseSensor, {
+            activationConstraint: { distance: 10 },
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 120,
-                tolerance: 8,
+                delay: 250,
+                tolerance: 5,
             },
         })
     );
@@ -41,8 +43,15 @@ export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[
 
         setUploading(true);
         const fileArray = Array.from(files);
+        const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
         for (const file of fileArray) {
+            if (file.size > MAX_VIDEO_SIZE) {
+                toast.error(`O vídeo ${file.name} ultrapassa o limite de 100MB.`);
+                continue;
+            }
+
+            const toastId = toast.loading(`Enviando vídeo ${file.name}...`);
             try {
                 const videoData = await uploadToBunnyCDN(file, file.type);
                 if (!videoData?.url) throw new Error('Erro no upload');
@@ -71,8 +80,10 @@ export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[
                 };
 
                 setVideos((prev) => [...prev, newVideo]);
+                toast.success(`Vídeo ${file.name} enviado!`, { id: toastId });
             } catch (err: any) {
                 console.error(`Erro no vídeo ${file.name}:`, err?.message);
+                toast.error(`Falha ao enviar ${file.name}`, { id: toastId, description: err?.message });
             }
         }
 
@@ -125,7 +136,7 @@ export const VideosTab = ({ initialVideos, viewAs }: { initialVideos: MediaItem[
                 <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400"
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:bg-gray-400 transition-colors"
                 >
                     <FaVideo size={14} />
                     {uploading ? 'Processando...' : 'Adicionar Vídeos'}
@@ -195,11 +206,14 @@ function SortableVideo({
                 transform: CSS.Transform.toString(transform),
                 transition,
                 zIndex: isDragging ? 50 : 0,
-                touchAction: 'none', // ✅ essencial no mobile para o DnD funcionar
+                // Permite scroll vertical livre (pan-y) quando não está ativamente arrastando
+                touchAction: isDragging ? 'none' : 'pan-y',
             }}
             {...attributes}
             {...listeners}
-            className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-900 cursor-grab border border-gray-100"
+            className={`group relative aspect-square rounded-2xl overflow-hidden bg-gray-900 border border-gray-100 transition-shadow select-none ${
+                isDragging ? 'scale-105 shadow-xl ring-2 ring-indigo-500 z-50' : 'cursor-grab'
+            }`}
         >
             {/* Pré-validação da thumbnail para detectar se ainda está em processamento no CDN */}
             <img
@@ -216,6 +230,9 @@ function SortableVideo({
                 controls
                 playsInline
                 preload="metadata"
+                // Impede que toques nos botões do player iniciem o drag and drop acidentalmente
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
             >
                 {videoSources.map((source, index) => (
                     <source key={index} src={source.src} type={source.type} />
@@ -232,27 +249,27 @@ function SortableVideo({
                 </div>
             )}
 
-            {/* ✅ No mobile não existe hover: deixamos sempre visível; no desktop aparece no hover */}
+            {/* No mobile (touch), a lixeira fica sempre visível (opacity-100). No desktop, surge no hover */}
             <div
                 className="
-          absolute inset-0
-          bg-black/20
-          opacity-100 md:opacity-0 md:group-hover:opacity-100
-          flex items-start justify-end p-2
-          transition-opacity
-          pointer-events-none
-        "
+                    absolute inset-0
+                    bg-black/20
+                    opacity-100 md:opacity-0 md:group-hover:opacity-100
+                    flex items-start justify-end p-2
+                    transition-opacity
+                    pointer-events-none
+                "
             >
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onDelete(video.id);
                     }}
-                    className="pointer-events-auto bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+                    className="w-9 h-9 flex items-center justify-center pointer-events-auto bg-red-500 text-white rounded-xl hover:bg-red-600 transition-transform active:scale-95 shadow-md"
                     aria-label="Excluir vídeo"
                     title="Excluir"
                 >
-                    <FaTrash size={12} />
+                    <FaTrash size={13} />
                 </button>
             </div>
         </div>
