@@ -1,11 +1,15 @@
 'use client';
 import { FaWhatsapp, FaRocket } from 'react-icons/fa';
 
+interface RegistrationSuccessProps {
+    userName: string;
+    userEmail?: string;
+}
 
-
-export const RegistrationSuccess = ({ userName }: { userName: string }) => {
+export const RegistrationSuccess = ({ userName, userEmail }: RegistrationSuccessProps) => {
     const phoneNumber = "556183049971"; // Recomendo usar env: process.env.NEXT_PUBLIC_WHATSAPP
-    const message = `Olá! Estou finalizando meu cadastro agora e gostaria de agilizar minha aprovação. User: ${userName}`;
+    const emailInfo = userEmail ? ` | Email: ${userEmail}` : '';
+    const message = `Olá! Estou finalizando meu cadastro agora e gostaria de agilizar minha aprovação. User: ${userName}${emailInfo}`;
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
     return (

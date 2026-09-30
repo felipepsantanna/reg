@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getUserProfile } from '@/lib/db-operations';
 import { stringToSlug } from '@/lib/string-operations';
+import { getAuthenticatedUser } from '@/lib/auth-user';
 import sharp from 'sharp';
 import _path from 'path';
-import fs from 'fs/promises'
+import fs from 'fs/promises';
+import crypto from 'crypto';
+import { getWatermarkFileName } from '@/lib/watermark';
 
 export interface MediaApiResponse {
     thumbnail: string;
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
-        const contentType = formData.get('fileType') as string;
+        const viewAsForm = formData.get('viewAs') as string | null;
+        const contentType = file.type || "";
         const isVideo = contentType.startsWith('video/');
 
         if (!file) {
@@ -27,36 +28,41 @@ export async function POST(request: Request) {
             );
         }
 
-        const token = cookies().get('auth_token');
-
-        if (!token) {
+        const session = await getAuthenticatedUser(request, viewAsForm);
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
-        try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
+        const userId = session.userId;
 
         if (!isVideo) {
             const user = await getUserProfile(userId);
-            const path = `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`;
 
+            if (!user?.sexo || !user.sexo.trim()) {
+                return NextResponse.json(
+                    { error: 'Por favor, selecione o sexo no seu perfil antes de enviar fotos.' },
+                    { status: 400 }
+                );
+            }
 
-            const imageResp = await uploadToBunnyStorage(file as File, path);
+            let watermarkFilename: string;
+            try {
+                watermarkFilename = getWatermarkFileName(user.sexo);
+            } catch (err: any) {
+                return NextResponse.json(
+                    { error: err.message || 'Por favor, selecione um sexo válido no seu perfil antes de enviar fotos.' },
+                    { status: 400 }
+                );
+            }
+
+            const path = (user?.sexo && user?.nome)
+                ? `${await stringToSlug(user.sexo)}/${await stringToSlug(user.nome)}`
+                : `perfil/${userId}`;
+
+            const imageResp = await uploadToBunnyStorage(file as File, path, watermarkFilename);
             return NextResponse.json(imageResp);
         }
         else {
@@ -80,24 +86,56 @@ export async function POST(request: Request) {
     }
 }
 
+/**
+ * Gera um nome de arquivo baseado no hash SHA-256 do buffer original.
+ * Ambas as versões (original e com logo) usam o mesmo nome, diferenciadas apenas pelo path.
+ */
+function gerarNomeArquivo(buffer: Buffer): string {
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+    return `${hash.substring(0, 12)}.webp`;
+}
 
-
-const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiResponse> => {
+const uploadToBunnyStorage = async (file: File, path: string, watermarkFilename: string): Promise<MediaApiResponse> => {
     // Dados do Bunny Storage
     const storageHost = process.env.BUNNY_STORAGE_HOST!;
     const storageName = process.env.BUNNY_STORAGE_NAME!;
     const accessKey = process.env.BUNNY_STORAGE_ACCESS!;
     const pullZoneUrl = "capitalsexy.b-cdn.net";
 
-    const uploadUrl = `${storageHost}/${storageName}/${path}/${file.name}`;
-
     const bytes = await file.arrayBuffer();
     const bufferOriginal = Buffer.from(bytes);
 
-    const watermarkPath = _path.resolve(process.cwd(), 'public', 'watermark.png');
+    // Gerar nome de arquivo baseado no hash do conteúdo original
+    const nomeArquivo = gerarNomeArquivo(bufferOriginal);
+
+    // ── 1. Upload do arquivo original (sem marca d'água) ──────────────────────
+    // Path: {path}/originais/{hash}.webp — nunca exposto no site
+    const uploadUrlOriginal = `${storageHost}/${storageName}/${path}/originais/${nomeArquivo}`;
+    const uploadOriginalResp = await fetch(uploadUrlOriginal, {
+        method: 'PUT',
+        headers: {
+            'AccessKey': accessKey,
+            'Content-Type': 'application/octet-stream',
+            'accept': 'application/json',
+        },
+        body: bufferOriginal,
+    });
+
+
+    if (!uploadOriginalResp.ok) {
+        const errText = await uploadOriginalResp.text();
+        console.error(`Falha ao salvar original no Bunny: ${uploadOriginalResp.status} — ${errText}`);
+        // Não lançamos erro aqui para não bloquear o upload principal
+    } else {
+        console.log(`Original salvo em: ${path}/originais/${nomeArquivo}`);
+    }
+
+    // ── 2. Aplicar marcas d'água ──────────────────────────────────────────────
+    const watermarkPath = _path.resolve(process.cwd(), 'public', watermarkFilename);
     const watermarkAllPath = _path.resolve(process.cwd(), 'public', 'watermark-all.png');
     const bufferMarcaDaguaGlobal = await fs.readFile(watermarkPath);
     const bufferMarcaDaguaCenter = await fs.readFile(watermarkAllPath);
+
     let resizeOptions = {};
     const metadata = await sharp(bufferOriginal).metadata();
     console.log(metadata);
@@ -114,7 +152,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         };
     }
     else {
-        console.log('height: ' + metadata.width!);
+        console.log('width: ' + metadata.width!);
         resizeOptions = {
             width: 615,
             // height: alturaMaxima, // Você pode adicionar uma altura máxima também se necessário
@@ -125,7 +163,8 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             withoutEnlargement: true // Não aumenta a imagem se ela já for menor que a larguraMaxima
         }
     };
-    console.log('metadata gerada')
+
+    console.log('metadata gerada');
     const bufferComPrimeiraMarca = await sharp(bufferOriginal)
         .resize(resizeOptions)
         .composite([{
@@ -133,6 +172,7 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             gravity: 'southeast'
         }])
         .toBuffer();
+
 
     console.log('Primeira marca d\'água (canto) aplicada.');
 
@@ -149,16 +189,20 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
         .toBuffer();
     console.log('Marca d\'água central redimensionada para cobrir a imagem.');
 
-    // Finalmente, compor a segunda marca d'água (redimensionada) sobre o resultado anterior
+    // Composição final: segunda marca d'água (centralizada e redimensionada)
     const bufferFinal = await sharp(bufferComPrimeiraMarca)
         .composite([{
             input: bufferMarcaDaguaCenterRedimensionada,
-            gravity: 'center' // 'gravity' aqui é opcional, pois as imagens têm o mesmo tamanho
+            gravity: 'center'
         }])
         .toBuffer();
 
+    // ── 3. Upload da versão com marca d'água ──────────────────────────────────
+    // Path: {path}/{hash}.webp — URL exibida no site, mesmo nome do original
+    const uploadUrlComLogo = `${storageHost}/${storageName}/${path}/${nomeArquivo}`;
+
     try {
-        const uploadResponse = await fetch(`${uploadUrl}`, {
+        const uploadResponse = await fetch(uploadUrlComLogo, {
             method: 'PUT',
             headers: {
                 'AccessKey': accessKey,
@@ -168,12 +212,13 @@ const uploadToBunnyStorage = async (file: File, path: string): Promise<MediaApiR
             body: bufferFinal,
         });
 
-        console.log(uploadResponse)
+        console.log(uploadResponse);
 
         if (!uploadResponse.ok) {
             throw new Error(`Erro no upload: ${uploadResponse.statusText}`);
         }
-        const publicUrl = `https://${pullZoneUrl}/${path}/${file.name}`;
+
+        const publicUrl = `https://${pullZoneUrl}/${path}/${nomeArquivo}`;
 
         const response = {
             thumbnail: publicUrl,

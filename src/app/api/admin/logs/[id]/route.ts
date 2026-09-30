@@ -1,17 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { getAuditLogs } from '@/lib/db-operations';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
-export async function GET(
-    request: Request,
-    { params }: { params: { id: string } }
-) {
+interface RouteContext {
+    params: Promise<{ id: string }>;
+}
 
+export async function GET(
+    _request: NextRequest,
+    context: RouteContext
+) {
     try {
-        const token = cookies().get('admin_token');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('admin_token');
 
         if (!token) {
             return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
@@ -23,15 +27,16 @@ export async function GET(
             return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
         }
 
-        const { id } = params;
-        request = request;
-        const logs = await getAuditLogs(parseInt(id))
+        // 3. AGUARDE o desmembramento dos params antes de usar o id
+        const { id } = await context.params;
+
+        const logs = await getAuditLogs(parseInt(id));
 
         return NextResponse.json(logs);
     } catch (error) {
-        console.error('Erro ao atualizar status:', error);
+        console.error('Erro ao buscar logs:', error);
         return NextResponse.json(
-            { error: 'Erro ao atualizar status' },
+            { error: 'Erro ao processar requisição' },
             { status: 500 }
         );
     }

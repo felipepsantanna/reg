@@ -32,7 +32,8 @@ export async function POST(request: Request) {
             .sign(secret);
 
         // Definir cookie
-        cookies().set('admin_token', token, {
+        const cookieStore = await cookies();
+        cookieStore.set('admin_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',

@@ -1,25 +1,37 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getUserProfile } from '@/lib/db-operations';
 import { cookies } from 'next/headers';
 
+// Interface para o contexto dinâmico do Next.js 16
+interface RouteContext {
+    params: Promise<{ id: string }>;
+}
+
 export async function PUT(
-    request: Request,
-    { params }: { params: { id: string } }
+    request: NextRequest,
+    context: RouteContext
 ) {
     try {
-        const token = cookies().get('admin_token');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('admin_token');
 
         if (!token) {
             return NextResponse.json({ error: 'Token não fornecido' }, { status: 401 });
         }
 
-        const { payload } = await jwtVerify(token.value, new TextEncoder().encode(process.env.JWT_SECRET));
+        const { payload } = await jwtVerify(
+            token.value,
+            new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key')
+        );
 
         if (payload.role !== 'admin') {
             return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
         }
+
+        // Aguarda os parâmetros da URL
+        const { id } = await context.params;
 
         const body = await request.json();
         const { status } = body;
@@ -33,7 +45,7 @@ export async function PUT(
 
         await pool.execute(
             'UPDATE user_profiles SET status = ?, updated_at = NOW() WHERE user_id = ?',
-            [status, params.id]
+            [status, id]
         );
 
         return NextResponse.json({ success: true });
@@ -47,16 +59,16 @@ export async function PUT(
 }
 
 export async function GET(
-    request: Request,
-    { params }: { params: { id: string } }
+    _request: NextRequest,
+    context: RouteContext
 ) {
-
     try {
-        const { id } = params;
-        request = request;
+        // Aguarda os parâmetros da URL
+        const { id } = await context.params;
+
         const row = await getUserProfile(parseInt(id));
 
-        if (row.length === 0) {
+        if (!row || row.length === 0) {
             return NextResponse.json(
                 { error: 'Perfil não encontrado' },
                 { status: 404 }

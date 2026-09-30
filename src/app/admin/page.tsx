@@ -2,352 +2,451 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
-import { AiOutlineExport, AiOutlineEye } from 'react-icons/ai';
+import {
+    FaCheck,
+    FaTimes,
+    FaKey,
+    FaExternalLinkAlt,
+    FaCopy,
+    FaDownload
+} from 'react-icons/fa';
+import {
+    HiOutlinePhotograph,
+    HiOutlineVideoCamera,
+    HiOutlineDownload
+} from 'react-icons/hi';
+import { toast, Toaster } from 'sonner';
 
 interface User {
     id: number;
     nome: string;
     email: string;
     telefone: string;
-    role: string;
     user_status: string;
-    created_at: string;
     updated_at: string;
-    phone: string | null;
-    city: string | null;
-    state: string | null;
-    birth_date: string | null;
-    gender: string | null;
-    occupation: string | null;
-    relationship_status: string | null;
-    bio: string | null;
-    instagram: string | null;
-    facebook: string | null;
-    twitter: string | null;
-    tiktok: string | null;
-    youtube: string | null;
-    website: string | null;
-    avatar_url: string | null;
-    cover_url: string | null;
-    media_count: number;
+    status: 'pending' | 'approved' | 'rejected';
     photo_count: number;
     video_count: number;
-    status: 'pending' | 'approved' | 'rejected';
-    updates: number;
+}
+
+interface OriginalPhoto {
+    id: number;
+    position: number;
+    url_com_logo: string;
+    url_original: string;
 }
 
 export default function AdminPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativo' | 'inativo'>('todos');
     const [busca, setBusca] = useState('');
+    const [filtroStatus, setFiltroStatus] = useState('todos');
+
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+    const [newPassword, setNewPassword] = useState('');
+
+    const [isOriginaisModalOpen, setIsOriginaisModalOpen] = useState(false);
+    const [originaisNome, setOriginaisNome] = useState('');
+    const [originaisData, setOriginaisData] = useState<OriginalPhoto[]>([]);
+    const [originaisLoading, setOriginaisLoading] = useState(false);
 
     const router = useRouter();
 
     useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-
-                // Obter o token do cookie
-                const response = await fetch('/api/admin/users');
-
-                if (response.status === 401) {
-                    router.push('/admin/login');
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error('Erro ao carregar usuários');
-                }
-
-                const data = await response.json();
-                setUsers(data);
-            } catch (err) {
-                setError('Erro ao carregar usuários');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchUsers();
     }, []);
 
-    const handleApprove = async (userId: number) => {
+    const fetchUsers = async () => {
         try {
-            const response = await fetch(`/api/profiles/${userId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ status: 'approved' })
-            });
-
-            if (!response.ok) {
-                throw new Error('Erro ao aprovar perfil');
-            }
-
-            // Atualizar a lista de usuários
-            setUsers(users.map(user =>
-                user.id === userId ? { ...user, status: 'approved' } : user
-            ));
+            const response = await fetch('/api/admin/users');
+            if (response.status === 401) return router.push('/admin/login');
+            const data = await response.json();
+            setUsers(data);
         } catch (err) {
-            console.error('Erro ao aprovar perfil:', err);
-            setError('Erro ao aprovar perfil');
+            toast.error('Erro ao carregar dados');
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleReject = async (userId: number) => {
+    const handleUpdateStatus = async (userId: number, newStatus: 'approved' | 'rejected') => {
+        const toastId = toast.loading('Atualizando status...');
         try {
             const response = await fetch(`/api/profiles/${userId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ status: 'rejected' })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
             });
+
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error('Erro ao reprovar perfil');
+                throw new Error(data.error || 'Erro na operação');
             }
 
-            // Atualizar a lista de usuários
-            setUsers(users.map(user =>
-                user.id === userId ? { ...user, status: 'rejected' } : user
-            ));
-        } catch (err) {
-            console.error('Erro ao reprovar perfil:', err);
-            setError('Erro ao reprovar perfil');
+            setUsers(users.map(u => u.id === userId ? { ...u, status: newStatus } : u));
+            toast.success(`Perfil ${newStatus === 'approved' ? 'aprovado' : 'rejeitado'}`, { id: toastId });
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao atualizar status', { id: toastId });
         }
     };
 
     const handleExportIframe = async (userId: number) => {
-
+        const toastId = toast.loading('Gerando código de exportação...');
         try {
             const response = await fetch(`/api/admin/exportiframe`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userId: userId })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error('Erro ao exportar perfil');
+                throw new Error(data.error || 'Erro desconhecido no servidor');
             }
-            const item = await response.json();
-            //const iframeCode = `<iframe src="https://cdn.rocktools.com.br/profiles/${userId}.html" width="100%" height="600" frameborder="0"></iframe>`;
-            // const blob = new Blob([iframeCode], { type: 'text/plain' });
-            const blob = new Blob([item.text as string], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `iframe-${userId}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            setError('Erro ao exportar perfil');
-            console.error(err);
+
+            if (data.success && data.text) {
+                await navigator.clipboard.writeText(data.text);
+                toast.success('Copiado!', {
+                    id: toastId,
+                    description: 'O código já está na sua área de transferência.',
+                });
+            } else {
+                throw new Error('A API retornou sucesso, mas sem conteúdo.');
+            }
+        } catch (err: any) {
+            toast.error('Falha na exportação', {
+                id: toastId,
+                description: err.message,
+            });
         }
     };
 
-    const handleOpen = (userId: number) => {
-        router.push(`/admin/alteracoes/${userId}`);
+    const handleChangePassword = async () => {
+        if (!newPassword) {
+            toast.error('Digite a senha');
+            return; // Adicionado explicitamente para fechar este caminho
+        }
+
+        const toastId = toast.loading('Salvando nova senha...');
+
+        try {
+            const res = await fetch(`/api/admin/users/${selectedUserId}/password`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: newPassword })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Erro ao salvar senha');
+            }
+
+            toast.success('Senha alterada com sucesso', { id: toastId });
+            setIsPasswordModalOpen(false);
+            setNewPassword('');
+        } catch (err: any) {
+            toast.error(err.message || 'Erro ao salvar senha', { id: toastId });
+        }
+        // O TS agora entende que todos os caminhos (if, try e catch) estão cobertos
     };
 
-    const cadastrosFiltrados = users.filter(cadastro => {
-        const matchStatus = filtroStatus === 'todos' || cadastro.user_status === filtroStatus;
-        const matchNome = (cadastro.nome !== null) ? cadastro.nome.toLowerCase().includes(busca.toLowerCase()) : false;
-        const matchBusca = busca === '' ||
-            matchNome ||
-            cadastro.email.toLowerCase().includes(busca.toLowerCase()) ||
-            (cadastro.telefone !== null && cadastro.telefone.includes(busca));
+    const handleVerOriginais = async (userId: number, nome: string) => {
+        setOriginaisNome(nome);
+        setOriginaisData([]);
+        setIsOriginaisModalOpen(true);
+        setOriginaisLoading(true);
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/originais`);
+            const data = await res.json();
+            if (res.ok) {
+                setOriginaisData(data.data ?? []);
+            } else {
+                toast.error(data.error || 'Erro ao buscar fotos originais');
+            }
+        } catch {
+            toast.error('Erro ao buscar fotos originais');
+        } finally {
+            setOriginaisLoading(false);
+        }
+    };
 
-        return matchStatus && matchBusca;
+    const handleDownloadFoto = async (url: string, filename: string) => {
+        try {
+            // Proxy server-side para evitar bloqueio de CORS ao baixar do CDN
+            const proxyUrl = `/api/admin/download?url=${encodeURIComponent(url)}`;
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error(`Status ${res.status}`);
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(objectUrl);
+        } catch (err: any) {
+            toast.error('Erro ao baixar foto', { description: err.message });
+        }
+    };
+
+    const handleDownloadTodas = async () => {
+        const toastId = toast.loading(`Baixando ${originaisData.length} fotos...`);
+        for (let i = 0; i < originaisData.length; i++) {
+            const foto = originaisData[i];
+            const filename = foto.url_original.split('/').pop() || `foto-${foto.id}.webp`;
+            await handleDownloadFoto(foto.url_original, filename);
+            await new Promise(r => setTimeout(r, 300));
+        }
+        toast.success('Download concluido!', { id: toastId });
+    };
+
+    const filtrados = users.filter(u => {
+        const matchBusca = u.nome?.toLowerCase().includes(busca.toLowerCase()) || u.email.toLowerCase().includes(busca.toLowerCase());
+        const matchStatus = filtroStatus === 'todos' || u.user_status === filtroStatus;
+        return matchBusca && matchStatus;
     });
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-100 p-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="animate-pulse">
-                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-                        <div className="space-y-4">
-                            {[...Array(5)].map((_, i) => (
-                                <div key={i} className="h-12 bg-gray-200 rounded"></div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="min-h-screen bg-gray-100 p-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                        <span className="block sm:inline">{error}</span>
-                    </div>
+            <div className="min-h-screen bg-white flex items-center justify-center font-sans antialiased">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Carregando</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <div className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Painel Administrativo</h1>
+        <div className="min-h-screen bg-white text-slate-900 font-sans antialiased">
+            <Toaster position="bottom-center" richColors />
 
+            <div className="max-w-6xl mx-auto px-4 py-8">
+                <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-12">
+                    <h1 className="text-2xl font-semibold tracking-tight">Admin <span className="text-slate-400 font-light">Panel</span></h1>
+                    <button
+                        onClick={() => router.push('/admin/cadastrar')}
+                        className="text-sm bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-colors shadow-sm"
+                    >
+                        Novo Usuário
+                    </button>
+                </header>
 
-                {/* Filtros */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Status
-                        </label>
-                        <select
-                            value={filtroStatus}
-                            onChange={(e) => setFiltroStatus((e.target as HTMLSelectElement).value as 'todos' | 'ativo' | 'inativo')}
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                            <option value="todos">Todos</option>
-                            <option value="ativo">Ativos</option>
-                            <option value="inativo">Inativos</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Buscar
-                        </label>
-                        <input
-                            type="text"
-                            value={busca}
-                            onChange={(e) => setBusca(e.target.value)}
-                            placeholder="Nome, email ou telefone"
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        />
-                    </div>
-
-                    <div className="flex flex-row-reverse pb-4">
-                        <div className="basis-128"> <button
-                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-3 rounded text-xs"
-                            onClick={() => router.push('/admin/cadastrar')}>
-                            Novo Usuário
-                        </button>
-                        </div>
-                    </div>
-
+                <div className="flex flex-col sm:flex-row gap-3 mb-8">
+                    <input
+                        type="text"
+                        placeholder="Buscar por nome ou e-mail..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400 transition-all text-slate-600 placeholder:text-slate-300"
+                        value={busca}
+                        onChange={e => setBusca(e.target.value)}
+                    />
+                    <select
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400 text-slate-600 cursor-pointer"
+                        value={filtroStatus}
+                        onChange={e => setFiltroStatus(e.target.value)}
+                    >
+                        <option value="todos">Todos Status</option>
+                        <option value="ativo">Ativos</option>
+                        <option value="inativo">Inativos</option>
+                    </select>
                 </div>
 
-
-
-
-
-                <div className="bg-white shadow overflow-x-auto sm:rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Nome
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Contato
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Mídias
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Última atualização
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Ações
-                                </th>
+                <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                <th className="px-6 py-4 text-center w-16 md:hidden">Status</th>
+                                <th className="px-6 py-4">Usuário</th>
+                                <th className="px-6 py-4 hidden md:table-cell">Mídias</th>
+                                <th className="px-6 py-4 hidden md:table-cell">Status</th>
+                                <th className="px-6 py-4 text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {cadastrosFiltrados.map((user) => (
+                        <tbody className="divide-y divide-slate-50">
+                            {filtrados.map((user) => (
+                                <tr key={user.id} className="hover:bg-slate-50/30 transition-colors">
+                                    <td className="px-6 py-4 text-center md:hidden">
+                                        <div className={`w-2 h-2 rounded-full mx-auto ${user.status === 'approved' ? 'bg-green-500' :
+                                            user.status === 'rejected' ? 'bg-red-500' : 'bg-slate-300'
+                                            }`} />
+                                    </td>
 
-                                <tr key={user.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {user.nome}
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm font-medium text-slate-700">{user.nome}</div>
+                                        <div className="text-[11px] text-slate-400 truncate max-w-[140px]">{user.email}</div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">{user.email}</div>
-                                        <div className="text-sm text-gray-500">{user.telefone}</div>
+
+                                    <td className="px-6 py-4 hidden md:table-cell">
+                                        <div className="flex items-center gap-4 text-slate-500">
+                                            <div className="flex items-center gap-1.5" title="Fotos">
+                                                <HiOutlinePhotograph size={16} className="text-slate-300" />
+                                                <span className="text-xs font-medium">{user.photo_count}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5" title="Vídeos">
+                                                <HiOutlineVideoCamera size={16} className="text-slate-300" />
+                                                <span className="text-xs font-medium">{user.video_count}</span>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {user.media_count} (Fotos: {user.photo_count}, Vídeos: {user.video_count})
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                            user.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                                'bg-yellow-100 text-yellow-800'
+
+                                    <td className="px-6 py-4 hidden md:table-cell">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-tight ${user.status === 'approved' ? 'bg-green-50 text-green-600' :
+                                            user.status === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
                                             }`}>
-                                            {user.status === 'approved' ? 'Aprovado' :
-                                                user.status === 'rejected' ? 'Reprovado' :
-                                                    user.status === 'pending' ? 'Pendente' : ' - '}
+                                            {user.status === 'approved' ? 'Aprovado' : user.status === 'rejected' ? 'Reprovado' : 'Pendente'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {format(new Date(user.updated_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 
-                                        {user.user_status === 'ativo' && (
-                                            <div className="flex space-x-2">
-                                                <button
-                                                    onClick={() => handleExportIframe(user.id)}
-                                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                                >
-                                                    <AiOutlineExport size={20} />
+                                    <td className="px-6 py-4">
+                                        <div className="flex justify-end gap-1">
+                                            {user.status !== 'approved' && (
+                                                <button onClick={() => handleUpdateStatus(user.id, 'approved')} className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-all" title="Aprovar">
+                                                    <FaCheck size={14} />
                                                 </button>
-                                                {user.status !== 'approved' && (
-                                                    <button
-                                                        onClick={() => handleApprove(user.id)}
-                                                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                                    >
-                                                        <FaCheckCircle size={20} />
-                                                    </button>
-                                                )}
-                                                {user.status !== 'rejected' && (
-                                                    <button
-                                                        onClick={() => handleReject(user.id)}
-                                                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                                    >
-                                                        <FaTimesCircle size={20} />
-                                                    </button>
-                                                )}
+                                            )}
+                                            {user.status !== 'rejected' && (
+                                                <button onClick={() => handleUpdateStatus(user.id, 'rejected')} className="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-all" title="Rejeitar">
+                                                    <FaTimes size={14} />
+                                                </button>
+                                            )}
 
-                                                {(user.updates !== null && user.updates > 0) && (
-                                                    <button
-                                                        onClick={() => handleOpen(user.id)}
-                                                        className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded text-xs"
-                                                    >
-                                                        <AiOutlineEye size={20} />
-                                                    </button>)}
-                                            </div>
-                                        )}
+                                            <div className="w-px h-4 bg-slate-100 mx-1 self-center" />
 
+                                            <button onClick={() => handleExportIframe(user.id)} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Copiar Iframe"><FaCopy size={13} /></button>
+                                            <button onClick={() => window.open(`/dashboard?viewAs=${user.id}`, '_blank')} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Ver Dashboard"><FaExternalLinkAlt size={12} /></button>
+                                            <button onClick={() => { setSelectedUserId(user.id); setIsPasswordModalOpen(true); }} className="p-2 text-slate-300 hover:text-slate-600 rounded-lg transition-all" title="Senha"><FaKey size={13} /></button>
+                                            <button onClick={() => handleVerOriginais(user.id, user.nome)} className="p-2 text-slate-300 hover:text-indigo-500 rounded-lg transition-all" title="Fotos Originais"><HiOutlinePhotograph size={16} /></button>
+                                        </div>
                                     </td>
                                 </tr>
-
-
                             ))}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {isPasswordModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/5 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
+                        <h3 className="text-sm font-bold mb-4 text-center tracking-tight text-slate-800">Nova Senha</h3>
+                        <input
+                            type="password"
+                            autoFocus
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-slate-400 transition-all"
+                            placeholder="••••••••"
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsPasswordModalOpen(false)} className="flex-1 py-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-all">Cancelar</button>
+                            <button onClick={handleChangePassword} className="flex-1 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-md">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isOriginaisModalOpen && (
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-[3px] z-50 flex items-center justify-center p-4"
+                    onClick={() => setIsOriginaisModalOpen(false)}
+                >
+                    <div
+                        className="bg-white border border-slate-100 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-sm font-bold tracking-tight text-slate-800">Fotos Originais</h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">{originaisNome}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {originaisData.length > 0 && (
+                                    <button
+                                        onClick={handleDownloadTodas}
+                                        className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all"
+                                    >
+                                        <HiOutlineDownload size={14} />
+                                        Baixar todas ({originaisData.length})
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setIsOriginaisModalOpen(false)}
+                                    className="p-1.5 text-slate-300 hover:text-slate-600 rounded-lg transition-all"
+                                >
+                                    <FaTimes size={13} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="overflow-y-auto p-6 flex-1">
+                            {originaisLoading && (
+                                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                                    <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+                                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Carregando</p>
+                                </div>
+                            )}
+
+                            {!originaisLoading && originaisData.length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-48 gap-2">
+                                    <HiOutlinePhotograph size={32} className="text-slate-200" />
+                                    <p className="text-sm text-slate-400">Nenhuma foto original encontrada</p>
+                                    <p className="text-[11px] text-slate-300">Fotos enviadas antes desta funcionalidade nao possuem original salvo</p>
+                                </div>
+                            )}
+
+                            {!originaisLoading && originaisData.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                    {originaisData.map((foto) => {
+                                        const filename = foto.url_original.split('/').pop() || `foto-${foto.id}.webp`;
+                                        return (
+                                            <div key={foto.id} className="group relative rounded-xl overflow-hidden bg-slate-50 border border-slate-100 aspect-square">
+                                                <img
+                                                    src={foto.url_original}
+                                                    alt={`Foto original ${foto.id}`}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                    onError={(e) => {
+                                                        const target = e.currentTarget;
+                                                        target.style.display = 'none';
+                                                        const parent = target.parentElement;
+                                                        if (parent) {
+                                                            const placeholder = document.createElement('div');
+                                                            placeholder.className = 'flex items-center justify-center w-full h-full';
+                                                            placeholder.innerHTML = '<span class="text-[10px] text-slate-300 text-center px-2">Original nao disponivel</span>';
+                                                            parent.appendChild(placeholder);
+                                                        }
+                                                    }}
+                                                />
+                                                {/* Overlay de download no hover */}
+                                                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/40 transition-all flex items-center justify-center">
+                                                    <button
+                                                        onClick={() => handleDownloadFoto(foto.url_original, filename)}
+                                                        className="opacity-0 group-hover:opacity-100 transition-all bg-white/90 hover:bg-white text-slate-700 p-2 rounded-lg shadow-md"
+                                                        title="Baixar foto original"
+                                                    >
+                                                        <FaDownload size={12} />
+                                                    </button>
+                                                </div>
+                                                {/* Numero da posicao */}
+                                                <div className="absolute top-1.5 left-1.5 bg-slate-900/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                                    #{foto.position + 1}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
-} 
+}

@@ -1,117 +1,148 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 import { getMediaById, deleteMediaById } from '@/lib/db-operations';
+import { getAuthenticatedUser } from '@/lib/auth-user';
+
+interface RouteContext {
+    params: Promise<{ id: string }>;
+}
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: RouteContext
 ) {
-
     try {
-        const { id } = params;
-        request = request;
+        const { id } = await context.params;
 
-        const token = cookies().get('auth_token');
+        const session = await getAuthenticatedUser(request);
 
-        if (!token) {
+        if (!session) {
             return NextResponse.json(
                 { message: 'Não autorizado' },
                 { status: 401 }
             );
         }
 
-        let userId: number;
         try {
-            const { payload } = await jwtVerify(
-                token.value,
-                new TextEncoder().encode(JWT_SECRET)
-            );
-            userId = payload.userId as number;
-            if (userId == 0) {
-                return NextResponse.json(
-                    { message: 'Token inválido' },
-                    { status: 401 }
-                );
-            }
-        } catch (error) {
-            return NextResponse.json(
-                { message: 'Token inválido' },
-                { status: 401 }
-            );
-        }
-
-        try {
-
-
             const media = await getMediaById(Number(id));
 
-            if (media && media.user_id == userId) {
+            if (!media) {
+                return NextResponse.json(
+                    { success: true, message: 'Mídia já não existe no banco de dados' },
+                    { status: 200 }
+                );
+            }
 
-                if (media.type === 'image') {
-                    const storageHost = process.env.BUNNY_STORAGE_HOST!;
-                    const storageName = process.env.BUNNY_STORAGE_NAME!;
-                    const accessKeyCDN = process.env.BUNNY_STORAGE_ACCESS!;
-                    const replacedUrl = process.env.BUNNY_STORAGE_URL!;
-                    const path = media.url.replace(replacedUrl, "");
-                    const deleteImageUrl = `${storageHost}/${storageName}/${path}`;
+            if (media.user_id !== session.userId && !session.isAdmin) {
+                return NextResponse.json(
+                    { message: 'Sem permissão para remover esta mídia' },
+                    { status: 403 }
+                );
+            }
 
-                    const deleteImageResp = await fetch(deleteImageUrl, {
+            if (media.type === 'image') {
+                const storageHost = process.env.BUNNY_STORAGE_HOST!;
+                const storageName = process.env.BUNNY_STORAGE_NAME!;
+                const accessKeyCDN = process.env.BUNNY_STORAGE_ACCESS!;
+
+                // Path da versão com logo: ex. feminino/nome/a3f8c1d2.webp
+                // Extrai de forma resiliente o pathname da URL para suportar tanto o CDN atual quanto domínios legados
+                let pathComLogo = media.url;
+                try {
+                    const parsedUrl = new URL(media.url);
+                    pathComLogo = decodeURIComponent(parsedUrl.pathname).replace(/^\/+/, '');
+                } catch {
+                    const replacedUrl = process.env.BUNNY_STORAGE_URL || '';
+                    pathComLogo = media.url.replace(replacedUrl, '').replace(/^\/+/, '');
+                }
+
+                // ── 1. Deletar versão com logo no Bunny ───────────────────
+                const deleteImageUrl = `${storageHost}/${storageName}/${pathComLogo}`;
+                const deleteImageResp = await fetch(deleteImageUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        'AccessKey': accessKeyCDN,
+                    },
+                });
+
+                if (!deleteImageResp.ok) {
+                    if (deleteImageResp.status === 404) {
+                        console.warn(`Aviso: imagem não encontrada no Bunny para deleção (já ausente): ${pathComLogo}`);
+                    } else {
+                        throw new Error(`Erro na hora de remover a imagem no Bunny (${deleteImageResp.status})`);
+                    }
+                }
+
+                // ── 2. Deletar versão original no Bunny (sem logo, se existir) ─
+                const lastSlash = pathComLogo.lastIndexOf('/');
+                if (lastSlash !== -1) {
+                    const dir = pathComLogo.substring(0, lastSlash);       // ex: masculino/anunciante-01
+                    const filename = pathComLogo.substring(lastSlash + 1); // ex: c47f1a71f4b7.webp
+                    const pathOriginal = `${dir}/originais/${filename}`;
+
+                    const deleteOriginalUrl = `${storageHost}/${storageName}/${pathOriginal}`;
+                    const deleteOriginalResp = await fetch(deleteOriginalUrl, {
                         method: 'DELETE',
                         headers: {
                             'AccessKey': accessKeyCDN,
                         },
                     });
 
-                    if (!deleteImageResp.ok) {
-                        throw new Error('Error na hora de remover a imagem');
-                    }
-                } else {
-                    const libraryId = process.env.BUNNY_LIBRARY_ID;
-                    const accessKey = process.env.BUNNY_ACCESS_KEY;
-
-                    if (!libraryId || !accessKey) {
-                        throw new Error('Configurações do Bunny CDN não encontradas');
-                    }
-
-                    const url = `https://video.bunnycdn.com/library/${libraryId}/videos/${media.url}`;
-
-                    const deleteVideoResp = await fetch(url, {
-                        method: 'DELETE',
-                        headers: {
-                            'AccessKey': accessKey,
-                        },
-                    });
-
-                    if (!deleteVideoResp.ok) {
-                        throw new Error('Error na hora de remover o vídeo');
+                    if (!deleteOriginalResp.ok) {
+                        if (deleteOriginalResp.status === 404) {
+                            // Imagem antiga ou já excluída, normal não ter original
+                        } else {
+                            console.warn(`Aviso: não foi possível remover o original ${pathOriginal}: ${deleteOriginalResp.statusText}`);
+                        }
+                    } else {
+                        console.log(`Original removido do Bunny: ${pathOriginal}`);
                     }
                 }
+            } else {
+                const libraryId = process.env.BUNNY_LIBRARY_ID;
+                const accessKey = process.env.BUNNY_ACCESS_KEY;
 
-                await deleteMediaById(Number(id));
+                if (!libraryId || !accessKey) {
+                    throw new Error('Configurações do Bunny CDN não encontradas');
+                }
 
+                const url = `https://video.bunnycdn.com/library/${libraryId}/videos/${media.url}`;
+
+                const deleteVideoResp = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'AccessKey': accessKey,
+                    },
+                });
+
+                if (!deleteVideoResp.ok) {
+                    if (deleteVideoResp.status === 404) {
+                        console.warn(`Aviso: vídeo não encontrado no Bunny Video para deleção (já ausente): ${media.url}`);
+                    } else {
+                        throw new Error('Erro na hora de remover o vídeo no Bunny');
+                    }
+                }
             }
 
+            // Remove do banco de dados de forma definitiva
+            await deleteMediaById(Number(id));
+
         } catch (e) {
+            console.error('Erro ao deletar mídia:', e);
             return NextResponse.json(
-                { message: 'Error na hora de remover a imagem' },
+                { message: 'Erro na hora de remover a mídia' },
                 { status: 500 }
             );
         }
 
-
-
         return NextResponse.json(
-            { error: 'ok' },
+            { success: true, message: 'Removido com sucesso' },
             { status: 200 }
         );
 
-
     } catch (error) {
-        console.error('Erro no upload:', error);
+        console.error('Erro interno no DELETE:', error);
         return NextResponse.json(
-            { error: 'Erro ao fazer upload do arquivo' },
+            { error: 'Erro ao processar a exclusão' },
             { status: 500 }
         );
     }
