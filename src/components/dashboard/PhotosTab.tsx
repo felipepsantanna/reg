@@ -221,8 +221,8 @@ function SortablePhoto({ photo, onDelete }: { photo: MediaItem, onDelete: (id: n
                     onError={() => setHasError(true)}
                 />
             )}
-            {/* No mobile (touch), a lixeira fica sempre visível (opacity-100). No desktop, surge no hover */}
-            <div className={`absolute inset-0 bg-black/20 ${hasError ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} flex items-start justify-end p-2 transition-opacity pointer-events-none`}>
+            {/* No mobile (touch), a lixeira fica sempre visível (opacity-100) com foto nítida. No desktop, surge no hover com overlay */}
+            <div className={`absolute inset-0 md:bg-black/20 ${hasError ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} flex items-start justify-end p-2 transition-opacity pointer-events-none`}>
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
                     className="w-9 h-9 flex items-center justify-center bg-red-500 text-white rounded-xl hover:bg-red-600 pointer-events-auto transition-transform active:scale-95 shadow-md"

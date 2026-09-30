@@ -253,7 +253,7 @@ function SortableVideo({
             <div
                 className="
                     absolute inset-0
-                    bg-black/20
+                    md:bg-black/20
                     opacity-100 md:opacity-0 md:group-hover:opacity-100
                     flex items-start justify-end p-2
                     transition-opacity
