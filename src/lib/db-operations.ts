@@ -141,6 +141,34 @@ export async function deleteMediaById(id: number) {
     return result;
 }
 
+export async function getMediaByIds(ids: number[]) {
+    if (!ids || ids.length === 0) return [];
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await pool.query(
+        `SELECT * FROM media WHERE id IN (${placeholders})`,
+        ids
+    ) as [RowDataPacket[], any];
+    return rows;
+}
+
+export async function deleteMediaByIds(ids: number[], userId?: number) {
+    if (!ids || ids.length === 0) return { affectedRows: 0 };
+    const placeholders = ids.map(() => '?').join(',');
+    if (userId !== undefined) {
+        const [result] = await pool.query(
+            `DELETE FROM media WHERE id IN (${placeholders}) AND user_id = ?`,
+            [...ids, userId]
+        ) as [any, any];
+        return result;
+    } else {
+        const [result] = await pool.query(
+            `DELETE FROM media WHERE id IN (${placeholders})`,
+            ids
+        ) as [any, any];
+        return result;
+    }
+}
+
 export async function updateMediaPositions(userId: number, mediaPositions: { id: number; position: number }[]) {
     const connection = await pool.getConnection();
     try {
