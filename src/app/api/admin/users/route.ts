@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { createUser } from '@/lib/db-operations';
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         const cookieStore = await cookies();
         const token = cookieStore.get('admin_token');
@@ -19,6 +19,25 @@ export async function GET() {
 
         if (payload.role !== 'admin') {
             return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const role = searchParams.get('role');
+
+        if (role === 'admin') {
+            const [admins] = await pool.execute(`
+                SELECT 
+                    id,
+                    email,
+                    role,
+                    status as user_status,
+                    created_at,
+                    updated_at
+                FROM users
+                WHERE role = 'admin'
+                ORDER BY created_at DESC;
+            `);
+            return NextResponse.json(admins);
         }
 
         const [users] = await pool.execute<UserRow[]>(`
@@ -73,17 +92,31 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Acesso não autorizado' }, { status: 403 });
         }
 
-        const { email, password } = await request.json();
+        const { email, password, role } = await request.json();
 
-        // Atualizar perfil existente
-        var result = await createUser(email, password);
+        if (!email || !password) {
+            return NextResponse.json(
+                { error: 'E-mail e senha são obrigatórios' },
+                { status: 400 }
+            );
+        }
+
+        const validRole: 'admin' | 'anunciante' = role === 'admin' ? 'admin' : 'anunciante';
+
+        const result = await createUser(email, password, validRole);
 
         return NextResponse.json({ success: true, data: result });
     }
-    catch (error) {
+    catch (error: any) {
         console.error('Erro ao cadastrar o usuário:', error);
+        if (error?.code === 'ER_DUP_ENTRY') {
+            return NextResponse.json(
+                { error: 'Este e-mail já está cadastrado' },
+                { status: 409 }
+            );
+        }
         return NextResponse.json(
-            { error: 'Erro ao cadastrar o usuário' },
+            { error: error?.message || 'Erro ao cadastrar o usuário' },
             { status: 500 }
         );
     }
