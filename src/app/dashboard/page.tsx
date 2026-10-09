@@ -9,7 +9,7 @@ import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
 import { FaSignOutAlt, FaGem, FaArrowLeft } from 'react-icons/fa';
-import { Toaster } from 'sonner';
+import { toast, Toaster } from 'sonner';
 
 function DashboardContent() {
     const router = useRouter();
@@ -24,6 +24,7 @@ function DashboardContent() {
     });
     const [loading, setLoading] = useState(true);
     const [saveLoading, setSaveLoading] = useState(false);
+    const [logoutLoading, setLogoutLoading] = useState(false);
 
     useEffect(() => {
         async function fetchDashboardData() {
@@ -55,11 +56,22 @@ function DashboardContent() {
             router.push('/admin');
             return;
         }
+        const toastId = toast.loading('Saindo do painel...');
+        setLogoutLoading(true);
         try {
             const res = await fetch('/api/auth/logout', { method: 'POST' });
-            if (res.ok) router.push('/login');
+            if (res.ok) {
+                toast.success('Desconectado com sucesso', { id: toastId });
+                router.push('/login');
+                router.refresh();
+            } else {
+                toast.error('Erro ao encerrar sessão', { id: toastId });
+            }
         } catch (error) {
             console.error('Falha ao deslogar:', error);
+            toast.error('Erro ao encerrar sessão', { id: toastId });
+        } finally {
+            setLogoutLoading(false);
         }
     };
 
@@ -133,9 +145,14 @@ function DashboardContent() {
                         <TabButton label="Vídeos" active={activeTab === 'videos'} onClick={() => setActiveTab('videos')} />
                     </nav>
 
-                    <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-500 font-bold text-sm transition-all shrink-0">
-                        <FaSignOutAlt />
-                        <span className="hidden md:inline">{viewAs ? 'Voltar' : 'Sair'}</span>
+                    <button
+                        onClick={handleLogout}
+                        disabled={logoutLoading}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:text-red-600 bg-gray-100 hover:bg-red-50 border border-transparent hover:border-red-100 font-bold text-sm transition-all shrink-0 disabled:opacity-50"
+                        title={viewAs ? 'Voltar ao painel administrativo' : 'Sair da conta'}
+                    >
+                        {viewAs ? <FaArrowLeft size={14} /> : <FaSignOutAlt size={14} />}
+                        <span className="hidden sm:inline">{viewAs ? 'Voltar' : 'Sair'}</span>
                     </button>
                 </div>
             </header>
