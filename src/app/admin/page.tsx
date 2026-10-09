@@ -8,7 +8,8 @@ import {
     FaKey,
     FaExternalLinkAlt,
     FaCopy,
-    FaDownload
+    FaDownload,
+    FaSignOutAlt
 } from 'react-icons/fa';
 import {
     HiOutlinePhotograph,
@@ -61,8 +62,28 @@ export default function AdminPage() {
     const [originaisNome, setOriginaisNome] = useState('');
     const [originaisData, setOriginaisData] = useState<OriginalPhoto[]>([]);
     const [originaisLoading, setOriginaisLoading] = useState(false);
+    const [logoutLoading, setLogoutLoading] = useState(false);
 
     const router = useRouter();
+
+    const handleLogout = async () => {
+        const toastId = toast.loading('Saindo do painel...');
+        setLogoutLoading(true);
+        try {
+            const res = await fetch('/api/admin/logout', { method: 'POST' });
+            if (res.ok) {
+                toast.success('Desconectado com sucesso', { id: toastId });
+                router.push('/admin/login');
+                router.refresh();
+            } else {
+                toast.error('Erro ao encerrar sessão', { id: toastId });
+            }
+        } catch {
+            toast.error('Erro ao encerrar sessão', { id: toastId });
+        } finally {
+            setLogoutLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchUsers();
@@ -257,12 +278,23 @@ export default function AdminPage() {
             <div className="max-w-6xl mx-auto px-4 py-8">
                 <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <h1 className="text-2xl font-semibold tracking-tight">Admin <span className="text-slate-400 font-light">Panel</span></h1>
-                    <button
-                        onClick={() => router.push('/admin/cadastrar')}
-                        className="text-sm bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-colors shadow-sm"
-                    >
-                        Novo Usuário
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => router.push('/admin/cadastrar')}
+                            className="text-sm bg-slate-900 text-white px-5 py-2.5 rounded-full hover:bg-slate-800 transition-colors shadow-sm"
+                        >
+                            Novo Usuário
+                        </button>
+                        <button
+                            onClick={handleLogout}
+                            disabled={logoutLoading}
+                            className="text-sm border border-slate-200 text-slate-600 px-4 py-2.5 rounded-full hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors flex items-center gap-2 font-medium disabled:opacity-50"
+                            title="Sair do painel administrativo"
+                        >
+                            <FaSignOutAlt size={13} />
+                            <span>Sair</span>
+                        </button>
+                    </div>
                 </header>
 
                 <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-3">
