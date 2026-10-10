@@ -10,7 +10,7 @@ interface ProfileRow extends RowDataPacket {
     telefone: string;
     sexo: string;
     tamanhoDote?: string;
-    idade: number;
+    idade?: number | string | null;
     altura: number;
     peso: number;
     localAtendimento: string;

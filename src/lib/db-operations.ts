@@ -43,13 +43,13 @@ export async function verifyPassword(password: string, hashedPassword: string) {
 export async function saveUserProfile(userId: number, profileData: {
     nome: string;
     sexo: string;
-    idade: string;
+    idade?: string | number | null;
     status?: string;
 }) {
     const {
         nome,
         sexo,
-        idade,
+        idade = '',
         status = 'pending'
     } = profileData;
 
@@ -59,7 +59,7 @@ export async function saveUserProfile(userId: number, profileData: {
             userId,
             nome,
             sexo,
-            idade,
+            idade ?? '',
             status
         ]
     );
@@ -76,16 +76,16 @@ export async function getUserProfile(userId: number) {
 export async function updateUserProfile(userId: number, profileData: {
     nome: string;
     sexo: string;
-    idade: string;
+    idade?: string | number | null;
 }) {
-    const { nome, sexo, idade } = profileData;
+    const { nome, sexo, idade = '' } = profileData;
 
     const [result] = await pool.execute(
         'UPDATE user_profiles SET nome = ?, sexo = ?, idade = ?, updated_at = NOW() WHERE user_id = ?',
         [
             nome,
             sexo,
-            idade,
+            idade ?? '',
             userId
         ]
     ) as [ResultSetHeader, any];
