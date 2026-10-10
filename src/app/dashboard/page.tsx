@@ -78,20 +78,29 @@ function DashboardContent() {
     const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaveLoading(true);
+        const toastId = toast.loading('Salvando alterações...');
         try {
-            await fetch(`/api/user/profile${query}`, {
+            const res = await fetch(`/api/user/profile${query}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nome: userData.nome,
-                    idade: userData.idade,
+                    idade: userData.idade || '',
                     sexo: userData.sexo,
                     telefone: userData.telefone,
                     descricao: userData.descricao,
                     viewAs: viewAs || undefined
                 }),
             });
-            alert('Perfil atualizado!');
+            const data = await res.json();
+            if (res.ok) {
+                toast.success('Perfil atualizado com sucesso!', { id: toastId });
+            } else {
+                toast.error(data.message || 'Erro ao atualizar perfil', { id: toastId });
+            }
+        } catch (error) {
+            console.error('Erro ao salvar perfil:', error);
+            toast.error('Erro ao atualizar perfil', { id: toastId });
         } finally {
             setSaveLoading(false);
         }

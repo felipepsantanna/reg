@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
         }
 
         const userId = session.userId;
-        // 1. Validar novos campos obrigatórios simplificados
-        const requiredFields = ['nome', 'sexo', 'idade'];
+        // 1. Validar novos campos obrigatórios simplificados (idade não é mais obrigatório)
+        const requiredFields = ['nome', 'sexo'];
         for (const field of requiredFields) {
             if (!profileData[field]) {
                 return NextResponse.json(
@@ -27,10 +27,18 @@ export async function POST(request: NextRequest) {
         // 2. Verificar se o perfil já existe
         const existingProfile = await getUserProfile(userId);
 
+        // Se idade não foi fornecida, preserva a idade existente ou usa vazio
+        const idadeToSave = (profileData.idade !== undefined && profileData.idade !== null && profileData.idade !== '')
+            ? String(profileData.idade)
+            : (existingProfile?.idade ? String(existingProfile.idade) : '');
+
         let result;
         if (existingProfile) {
             // Log de auditoria (opcional, mas recomendado manter)
-            const changes = await getUpdatedFields(existingProfile, profileData);
+            const changes = await getUpdatedFields(existingProfile, {
+                ...profileData,
+                idade: idadeToSave
+            });
             if (changes && changes.length > 0) {
                 await saveAuditLogs(userId, changes);
             }
@@ -39,7 +47,7 @@ export async function POST(request: NextRequest) {
             result = await updateUserProfile(userId, {
                 nome: profileData.nome,
                 sexo: profileData.sexo,
-                idade: profileData.idade
+                idade: idadeToSave
             });
 
             // Se o perfil já estiver aprovado, avisamos o sistema de exportação (opcional)
@@ -59,7 +67,7 @@ export async function POST(request: NextRequest) {
             result = await saveUserProfile(userId, {
                 nome: profileData.nome,
                 sexo: profileData.sexo,
-                idade: profileData.idade,
+                idade: idadeToSave,
                 status: 'pending' // Novo perfil nasce pendente
             });
         }

@@ -3,7 +3,7 @@ export interface UserProfileData {
     nome: string;
     telefone: string;
     sexo: string;
-    idade: string;
+    idade?: string;
     descricao: string;
     email?: string;
     photos: MediaItem[];
