@@ -71,32 +71,6 @@ export async function DELETE(
                         throw new Error(`Erro na hora de remover a imagem no Bunny (${deleteImageResp.status})`);
                     }
                 }
-
-                // ── 2. Deletar versão original no Bunny (sem logo, se existir) ─
-                const lastSlash = pathComLogo.lastIndexOf('/');
-                if (lastSlash !== -1) {
-                    const dir = pathComLogo.substring(0, lastSlash);       // ex: masculino/anunciante-01
-                    const filename = pathComLogo.substring(lastSlash + 1); // ex: c47f1a71f4b7.webp
-                    const pathOriginal = `${dir}/originais/${filename}`;
-
-                    const deleteOriginalUrl = `${storageHost}/${storageName}/${pathOriginal}`;
-                    const deleteOriginalResp = await fetch(deleteOriginalUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'AccessKey': accessKeyCDN,
-                        },
-                    });
-
-                    if (!deleteOriginalResp.ok) {
-                        if (deleteOriginalResp.status === 404) {
-                            // Imagem antiga ou já excluída, normal não ter original
-                        } else {
-                            console.warn(`Aviso: não foi possível remover o original ${pathOriginal}: ${deleteOriginalResp.statusText}`);
-                        }
-                    } else {
-                        console.log(`Original removido do Bunny: ${pathOriginal}`);
-                    }
-                }
             } else {
                 const libraryId = process.env.BUNNY_LIBRARY_ID;
                 const accessKey = process.env.BUNNY_ACCESS_KEY;
