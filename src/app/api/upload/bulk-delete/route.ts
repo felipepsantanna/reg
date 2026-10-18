@@ -83,22 +83,6 @@ export async function POST(request: NextRequest) {
                             'AccessKey': accessKeyCDN,
                         },
                     });
-
-                    // 2. Versão original sem logo (se existir)
-                    const lastSlash = pathComLogo.lastIndexOf('/');
-                    if (lastSlash !== -1) {
-                        const dir = pathComLogo.substring(0, lastSlash);
-                        const filename = pathComLogo.substring(lastSlash + 1);
-                        const pathOriginal = `${dir}/originais/${filename}`;
-
-                        const deleteOriginalUrl = `${storageHost}/${storageName}/${pathOriginal}`;
-                        await fetch(deleteOriginalUrl, {
-                            method: 'DELETE',
-                            headers: {
-                                'AccessKey': accessKeyCDN,
-                            },
-                        });
-                    }
                 } else if (media.type === 'video') {
                     if (!libraryId || !accessKeyVideo) return;
                     const url = `https://video.bunnycdn.com/library/${libraryId}/videos/${media.url}`;

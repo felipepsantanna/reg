@@ -25,34 +25,24 @@ export const ProfileTab = ({ data, onChange, onSave, loading }: ProfileTabProps)
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="text-xs font-black uppercase tracking-wider text-gray-400 ml-1">Idade</label>
-                    <input
-                        name="idade"
-                        type="number"
-                        placeholder="Ex: 22"
-                        value={data.idade || ''}
-                        onChange={onChange}
-                        required
-                        className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-indigo-500 focus:bg-white outline-none transition-all font-medium"
-                    />
-                </div>
-                <div>
-                    <label className="text-xs font-black uppercase tracking-wider text-gray-400 ml-1">Sexo</label>
-                    <select
-                        name="sexo"
-                        value={data.sexo || ''}
-                        onChange={onChange}
-                        required
-                        className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-indigo-500 focus:bg-white outline-none transition-all font-medium appearance-none cursor-pointer"
-                    >
-                        <option value="">Selecione</option>
-                        <option value="feminino">Feminino</option>
-                        <option value="masculino">Masculino</option>
-                        <option value="trans">Trans</option>
-                    </select>
-                </div>
+            {data.idade ? (
+                <input type="hidden" name="idade" value={data.idade} />
+            ) : null}
+
+            <div>
+                <label className="text-xs font-black uppercase tracking-wider text-gray-400 ml-1">Gênero</label>
+                <select
+                    name="sexo"
+                    value={data.sexo || ''}
+                    onChange={onChange}
+                    required
+                    className="w-full p-4 bg-gray-50 rounded-2xl mt-1 border border-transparent focus:border-indigo-500 focus:bg-white outline-none transition-all font-medium appearance-none cursor-pointer"
+                >
+                    <option value="">Selecione</option>
+                    <option value="feminino">Feminino</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="trans">Trans</option>
+                </select>
             </div>
 
             <button

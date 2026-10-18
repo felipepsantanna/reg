@@ -29,10 +29,6 @@ export default function AdminLoginPage() {
                 throw new Error(data.error || 'Erro ao fazer login');
             }
 
-            // Aguardar um momento para garantir que o cookie seja definido
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Usar window.location.href para forçar um redirecionamento completo
             window.location.href = '/admin';
         } catch (err) {
             console.error('Erro durante o login:', err);
