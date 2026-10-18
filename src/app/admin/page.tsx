@@ -44,6 +44,7 @@ interface OriginalPhoto {
     position: number;
     url_com_logo: string;
     url_original: string;
+    is_deleted?: boolean;
 }
 
 export default function AdminPage() {
@@ -553,7 +554,7 @@ export default function AdminPage() {
 
                             {!originaisLoading && originaisData.length > 0 && (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {originaisData.map((foto) => {
+                                    {originaisData.map((foto, idx) => {
                                         const filename = foto.url_original.split('/').pop() || `foto-${foto.id}.webp`;
                                         return (
                                             <div key={foto.id} className="group relative rounded-xl overflow-hidden bg-slate-50 border border-slate-100 aspect-square">
@@ -586,8 +587,15 @@ export default function AdminPage() {
                                                 </div>
                                                 {/* Numero da posicao */}
                                                 <div className="absolute top-1.5 left-1.5 bg-slate-900/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                                                    #{foto.position + 1}
+                                                    #{typeof foto.position === 'number' && !isNaN(foto.position) ? foto.position + 1 : idx + 1}
                                                 </div>
+
+                                                {/* Indicador se foi removida da galeria ativa pelo anunciante */}
+                                                {foto.is_deleted && (
+                                                    <div className="absolute bottom-1.5 left-1.5 bg-red-600/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                                        Removida
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
