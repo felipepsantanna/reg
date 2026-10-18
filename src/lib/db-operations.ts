@@ -119,7 +119,15 @@ export async function saveMedia(userId: number, type: 'image' | 'video', thumbna
 }
 export async function getMediaByUserId(userId: number) {
     const [rows] = await pool.execute(
-        'SELECT * FROM media WHERE user_id = ? ORDER BY position',
+        'SELECT * FROM media WHERE user_id = ? AND deleted_at IS NULL ORDER BY position',
+        [userId]
+    );
+    return rows;
+}
+
+export async function getAllMediaByUserId(userId: number) {
+    const [rows] = await pool.execute(
+        'SELECT * FROM media WHERE user_id = ? ORDER BY (deleted_at IS NOT NULL), position, id',
         [userId]
     );
     return rows;
@@ -134,7 +142,7 @@ export async function getMediaById(id: number) {
 
 export async function deleteMediaById(id: number) {
     const [result] = await pool.execute(
-        'DELETE FROM media WHERE id = ?',
+        'UPDATE media SET deleted_at = NOW() WHERE id = ?',
         [id]
     ) as [any, any];
 
@@ -156,13 +164,13 @@ export async function deleteMediaByIds(ids: number[], userId?: number) {
     const placeholders = ids.map(() => '?').join(',');
     if (userId !== undefined) {
         const [result] = await pool.query(
-            `DELETE FROM media WHERE id IN (${placeholders}) AND user_id = ?`,
+            `UPDATE media SET deleted_at = NOW() WHERE id IN (${placeholders}) AND user_id = ?`,
             [...ids, userId]
         ) as [any, any];
         return result;
     } else {
         const [result] = await pool.query(
-            `DELETE FROM media WHERE id IN (${placeholders})`,
+            `UPDATE media SET deleted_at = NOW() WHERE id IN (${placeholders})`,
             ids
         ) as [any, any];
         return result;

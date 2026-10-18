@@ -40,7 +40,7 @@ export async function GET(
         // Buscar mídias do perfil
         const [mediaRows] = await pool.execute<MediaRow[]>(`
             SELECT * FROM media
-            WHERE user_id = ? 
+            WHERE user_id = ? AND deleted_at IS NULL
             ORDER BY type, position ASC
         `, [id]);
 

@@ -54,9 +54,9 @@ export async function GET(request: Request) {
                 p.sexo,
                 p.descricao,
                 p.status,
-                COUNT(DISTINCT m.id) as media_count,
-                SUM(CASE WHEN m.type = 'image' THEN 1 ELSE 0 END) as photo_count,
-                SUM(CASE WHEN m.type = 'video' THEN 1 ELSE 0 END) as video_count,
+                COUNT(DISTINCT CASE WHEN m.deleted_at IS NULL THEN m.id ELSE NULL END) as media_count,
+                SUM(CASE WHEN m.type = 'image' AND m.deleted_at IS NULL THEN 1 ELSE 0 END) as photo_count,
+                SUM(CASE WHEN m.type = 'video' AND m.deleted_at IS NULL THEN 1 ELSE 0 END) as video_count,
                 a.updates
             FROM users u
             LEFT JOIN user_profiles p ON u.id = p.user_id
