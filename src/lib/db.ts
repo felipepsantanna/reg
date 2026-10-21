@@ -61,4 +61,31 @@ export function updateAnuncianteStatus(id: string, status: 'ativo' | 'inativo'):
         return true;
     }
     return false;
-} 
+}
+
+// Salvar token de redefinição de senha
+export async function savePasswordResetToken(email: string, token: string, expiry: Date): Promise<boolean> {
+    const [result] = await pool.execute(
+        'UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?',
+        [token, expiry, email]
+    );
+    return (result as any).affectedRows > 0;
+}
+
+// Buscar usuário com token válido (e não expirado)
+export async function findUserByResetToken(token: string): Promise<UserRow | null> {
+    const [rows] = await pool.execute<UserRow[]>(
+        'SELECT id, email, role, status FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()',
+        [token]
+    );
+    return rows[0] || null;
+}
+
+// Atualizar senha e invalidar token
+export async function updateUserPasswordAndClearToken(userId: number | string, newPasswordHash: string): Promise<boolean> {
+    const [result] = await pool.execute(
+        'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?',
+        [newPasswordHash, userId]
+    );
+    return (result as any).affectedRows > 0;
+}
