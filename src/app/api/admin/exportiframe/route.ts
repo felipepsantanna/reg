@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import sharp from 'sharp';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key';
 
@@ -55,11 +56,25 @@ export async function POST(request: Request) {
 
     /*Galeria*/
     if (medias.data.length > 0) {
-      content += medias.data
-        .filter((item: MediaItem) => item.type === 'image')
-        .map((item: MediaItem) => {
-          return `<div class="px-item-imglista">
-              <figure class="px-img-dupla">
+      const imageItems = medias.data.filter((item: MediaItem) => item.type === 'image');
+      const imagesHtmlArray = await Promise.all(
+        imageItems.map(async (item: MediaItem) => {
+          let isVertical = false;
+          try {
+            const imgRes = await fetch(item.url);
+            if (imgRes.ok) {
+              const buffer = Buffer.from(await imgRes.arrayBuffer());
+              const metadata = await sharp(buffer).metadata();
+              isVertical = (metadata.height ?? 0) > (metadata.width ?? 0);
+            }
+          } catch (err) {
+            console.error(`Erro ao verificar dimensões da imagem ${item.url}:`, err);
+          }
+
+          const figureOpenTag = isVertical ? '<figure class="px-img-dupla">' : '<figure>';
+
+          return `
+              ${figureOpenTag}
                     <a href="${item.url}" title="Acompanhantes em Brasília">
                         <img
                                       loading="lazy"
@@ -67,9 +82,16 @@ export async function POST(request: Request) {
                                       alt="${profile.nome}"
                                       itemprop="image" />
                     </a>
-              </figure>
+              </figure>`;
+        })
+      );
+
+      const imagesHtml = imagesHtmlArray.join('');
+
+      if (imagesHtml) {
+        content += `<div class="px-item-imglista">${imagesHtml}
           </div>`;
-        }).join('');
+      }
 
       //////////////////////////////////////////////////////////////////
       ////////////     CRIANDO O IFRAMES COM OS VÍDEOS       ///////////
@@ -108,5 +130,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-

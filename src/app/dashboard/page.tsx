@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ProfileTab } from '@/components/dashboard/ProfileTab';
 import { PhotosTab } from '@/components/dashboard/PhotosTab';
 import { VideosTab } from '@/components/dashboard/VideosTab';
+import { SecurityTab } from '@/components/dashboard/SecurityTab';
 import { RegistrationSuccess } from '@/components/RegistrationSuccess';
 import { UserProfileData } from '@/types/UserProfileData';
 import { MediaItem } from '@/types/MediaItem';
@@ -17,7 +18,7 @@ function DashboardContent() {
     const viewAs = searchParams.get('viewAs');
     const query = viewAs ? `?viewAs=${encodeURIComponent(viewAs)}` : '';
 
-    const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos' | 'security'>('profile');
     const [userData, setUserData] = useState<UserProfileData>({
         nome: '', sexo: '', idade: '', telefone: '', descricao: '', email: '',
         photos: [], videos: []
@@ -152,6 +153,7 @@ function DashboardContent() {
                         <TabButton label="Perfil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
                         <TabButton label="Fotos" active={activeTab === 'photos'} onClick={() => setActiveTab('photos')} />
                         <TabButton label="Vídeos" active={activeTab === 'videos'} onClick={() => setActiveTab('videos')} />
+                        <TabButton label="Segurança" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
                     </nav>
 
                     <button
@@ -182,6 +184,9 @@ function DashboardContent() {
                         </div>
                         <div className={activeTab === 'videos' ? 'block' : 'hidden'}>
                             <VideosTab initialVideos={userData.videos} viewAs={viewAs} />
+                        </div>
+                        <div className={activeTab === 'security' ? 'block' : 'hidden'}>
+                            <SecurityTab viewAs={viewAs} />
                         </div>
                     </div>
 
