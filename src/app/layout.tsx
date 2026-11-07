@@ -6,6 +6,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata = {
     title: 'Registro',
     description: 'Sistema de registro',
+    icons: {
+        icon: '/favicon.ico',
+    },
 };
 
 export default function RootLayout({
@@ -18,4 +21,4 @@ export default function RootLayout({
             <body className={inter.className}>{children}</body>
         </html>
     );
-} 
+}
