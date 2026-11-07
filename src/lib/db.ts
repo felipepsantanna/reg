@@ -1,6 +1,6 @@
 import mysql from 'mysql2/promise';
 import { RowDataPacket } from 'mysql2';
-
+//force deploy
 interface UserRow extends RowDataPacket {
     id: string;
     email: string;
@@ -88,4 +88,4 @@ export async function updateUserPasswordAndClearToken(userId: number | string, n
         [newPasswordHash, userId]
     );
     return (result as any).affectedRows > 0;
-}
+}
