@@ -331,10 +331,35 @@ function SortableVideo({
     onToggleSelect: (id: number | string) => void;
 }) {
     const [posterError, setPosterError] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const wasDraggingRef = useRef(false);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: String(video.id),
         disabled: isSelectionMode,
     });
+
+    useEffect(() => {
+        if (isDragging) {
+            wasDraggingRef.current = true;
+            if (videoRef.current && !videoRef.current.paused) {
+                videoRef.current.pause();
+            }
+            return undefined;
+        }
+        if (wasDraggingRef.current) {
+            const timer = setTimeout(() => {
+                wasDraggingRef.current = false;
+            }, 150);
+            return () => clearTimeout(timer);
+        }
+        return undefined;
+    }, [isDragging]);
+
+    useEffect(() => {
+        if (isSelectionMode && videoRef.current && !videoRef.current.paused) {
+            videoRef.current.pause();
+        }
+    }, [isSelectionMode]);
 
     const cdnHost = 'https://vz-ddb4a7c6-db0.b-cdn.net';
 
@@ -364,12 +389,26 @@ function SortableVideo({
                 zIndex: isDragging ? 50 : 0,
                 // Permite scroll vertical livre (pan-y) quando não está ativamente arrastando
                 touchAction: isSelectionMode ? 'auto' : (isDragging ? 'none' : 'pan-y'),
+                WebkitTouchCallout: 'none',
             }}
             {...(isSelectionMode ? {} : attributes)}
             {...(isSelectionMode ? {} : listeners)}
+            onContextMenu={(e) => e.preventDefault()}
             onClick={() => {
+                if (wasDraggingRef.current) {
+                    wasDraggingRef.current = false;
+                    return;
+                }
                 if (isSelectionMode) {
                     onToggleSelect(video.id);
+                    return;
+                }
+                if (videoRef.current) {
+                    if (videoRef.current.paused) {
+                        videoRef.current.play().catch(() => {});
+                    } else {
+                        videoRef.current.pause();
+                    }
                 }
             }}
             className={`group relative aspect-square rounded-2xl overflow-hidden bg-gray-900 border transition-all select-none ${
@@ -394,20 +433,15 @@ function SortableVideo({
             />
 
             <video
+                ref={videoRef}
                 poster={posterError ? undefined : posterUrl}
-                className={`w-full h-full object-cover transition-opacity ${
+                className={`w-full h-full object-cover pointer-events-none transition-opacity ${
                     isSelectionMode && isSelected ? 'opacity-85' : 'opacity-100'
                 }`}
                 controls={!isSelectionMode}
                 playsInline
                 preload="metadata"
-                // Impede que toques nos botões do player iniciem o drag and drop acidentalmente
-                onPointerDown={(e) => {
-                    if (!isSelectionMode) e.stopPropagation();
-                }}
-                onTouchStart={(e) => {
-                    if (!isSelectionMode) e.stopPropagation();
-                }}
+                draggable={false}
             >
                 {videoSources.map((source, index) => (
                     <source key={index} src={source.src} type={source.type} />
@@ -462,6 +496,8 @@ function SortableVideo({
                     "
                 >
                     <button
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                         onClick={(e) => {
                             e.stopPropagation();
                             onDelete(video.id);
