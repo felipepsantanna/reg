@@ -47,7 +47,16 @@ export async function POST(request: Request) {
 
 
     /*Header*/
-    let content = `<style type="text/css">
+    let content = '';
+
+    if (profile.classe_especial === 'sim') {
+      content += `<script>
+  document.querySelector('.px-item-jobTitle').innerHTML = " ";
+</script>
+`;
+    }
+
+    content += `<style type="text/css">
 .px-item-extrahtml {
     text-align: initial;
 }

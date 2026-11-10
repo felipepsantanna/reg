@@ -37,6 +37,7 @@ export interface ProfileRow extends RowDataPacket {
     nome: string;
     telefone: string;
     sexo: string;
+    classe_especial?: 'sim' | 'nao';
     tamanhoDote?: string;
     idade?: number | string | null;
     altura: number;

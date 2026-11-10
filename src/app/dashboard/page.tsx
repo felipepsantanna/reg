@@ -20,7 +20,7 @@ function DashboardContent() {
 
     const [activeTab, setActiveTab] = useState<'profile' | 'photos' | 'videos' | 'security'>('profile');
     const [userData, setUserData] = useState<UserProfileData>({
-        nome: '', sexo: '', idade: '', telefone: '', descricao: '', email: '',
+        nome: '', sexo: '', classe_especial: 'nao', idade: '', telefone: '', descricao: '', email: '',
         photos: [], videos: []
     });
     const [loading, setLoading] = useState(true);
@@ -39,7 +39,8 @@ function DashboardContent() {
                 const allMedia: MediaItem[] = mediaJson.media || [];
 
                 setUserData({
-                    ...(profileJson.data || { nome: '', sexo: '', idade: '' }),
+                    ...(profileJson.data || { nome: '', sexo: '', classe_especial: 'nao', idade: '' }),
+                    classe_especial: profileJson.data?.classe_especial || 'nao',
                     photos: allMedia.filter(m => m.type === 'image').sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)),
                     videos: allMedia.filter(m => m.type === 'video').sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0))
                 });
@@ -88,6 +89,7 @@ function DashboardContent() {
                     nome: userData.nome,
                     idade: userData.idade || '',
                     sexo: userData.sexo,
+                    classe_especial: userData.classe_especial || 'nao',
                     telefone: userData.telefone,
                     descricao: userData.descricao,
                     viewAs: viewAs || undefined
@@ -177,6 +179,7 @@ function DashboardContent() {
                                 onChange={(e) => setUserData({ ...userData, [e.target.name]: e.target.value })}
                                 onSave={handleSaveProfile}
                                 loading={saveLoading}
+                                viewAs={viewAs}
                             />
                         </div>
                         <div className={activeTab === 'photos' ? 'block' : 'hidden'}>
