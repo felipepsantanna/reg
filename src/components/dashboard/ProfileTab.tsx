@@ -6,9 +6,10 @@ interface ProfileTabProps {
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
     onSave: (e: React.FormEvent) => void;
     loading: boolean;
+    viewAs?: string | null;
 }
 
-export const ProfileTab = ({ data, onChange, onSave, loading }: ProfileTabProps) => (
+export const ProfileTab = ({ data, onChange, onSave, loading, viewAs }: ProfileTabProps) => (
     <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <h2 className="text-2xl font-black mb-6 text-gray-800">Informações Básicas</h2>
 
@@ -43,6 +44,39 @@ export const ProfileTab = ({ data, onChange, onSave, loading }: ProfileTabProps)
                     <option value="masculino">Masculino</option>
                     <option value="trans">Trans</option>
                 </select>
+            </div>
+
+            <div>
+                <label className="text-xs font-black uppercase tracking-wider text-gray-400 ml-1 block">Classe Especial</label>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 ml-1 mt-0.5 mb-2">
+                    Terapeutas e outras categorias (somente administração do site - não marcar)
+                </p>
+                <div className={`inline-flex items-center gap-6 px-5 py-4 bg-gray-50 rounded-2xl border border-transparent ${!viewAs ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                    <label className={`inline-flex items-center gap-2 ${viewAs ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input
+                            type="radio"
+                            name="classe_especial"
+                            value="sim"
+                            disabled={!viewAs}
+                            checked={(data.classe_especial || 'nao') === 'sim'}
+                            onChange={onChange}
+                            className={`w-4 h-4 accent-gray-700 ${viewAs ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                        />
+                        <span className="text-xs font-black uppercase tracking-wider text-gray-700">Sim</span>
+                    </label>
+                    <label className={`inline-flex items-center gap-2 ${viewAs ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input
+                            type="radio"
+                            name="classe_especial"
+                            value="nao"
+                            disabled={!viewAs}
+                            checked={(data.classe_especial || 'nao') === 'nao'}
+                            onChange={onChange}
+                            className={`w-4 h-4 accent-gray-700 ${viewAs ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                        />
+                        <span className="text-xs font-black uppercase tracking-wider text-gray-700">Não</span>
+                    </label>
+                </div>
             </div>
 
             <button

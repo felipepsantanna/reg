@@ -32,12 +32,19 @@ export async function POST(request: NextRequest) {
             ? String(profileData.idade)
             : (existingProfile?.idade ? String(existingProfile.idade) : '');
 
+        // Somente administradores (via viewAs / sessão admin) podem atualizar classe_especial.
+        // Anunciantes comuns mantêm o valor já existente no banco (ou 'nao' no primeiro cadastro).
+        const classeEspecialToSave: 'sim' | 'nao' = session.isAdmin
+            ? (profileData.classe_especial === 'sim' ? 'sim' : 'nao')
+            : (existingProfile?.classe_especial === 'sim' ? 'sim' : 'nao');
+
         let result;
         if (existingProfile) {
             // Log de auditoria (opcional, mas recomendado manter)
             const changes = await getUpdatedFields(existingProfile, {
                 ...profileData,
-                idade: idadeToSave
+                idade: idadeToSave,
+                classe_especial: classeEspecialToSave
             });
             if (changes && changes.length > 0) {
                 await saveAuditLogs(userId, changes);
@@ -47,6 +54,7 @@ export async function POST(request: NextRequest) {
             result = await updateUserProfile(userId, {
                 nome: profileData.nome,
                 sexo: profileData.sexo,
+                classe_especial: classeEspecialToSave,
                 idade: idadeToSave
             });
 
@@ -67,6 +75,7 @@ export async function POST(request: NextRequest) {
             result = await saveUserProfile(userId, {
                 nome: profileData.nome,
                 sexo: profileData.sexo,
+                classe_especial: classeEspecialToSave,
                 idade: idadeToSave,
                 status: 'pending' // Novo perfil nasce pendente
             });
