@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     nome VARCHAR(255) NOT NULL,
     telefone VARCHAR(20) NOT NULL,
     sexo VARCHAR(50) NOT NULL,
+    classe_especial ENUM('sim', 'nao') NOT NULL DEFAULT 'nao',
     tamanho_dote VARCHAR(50),
     idade VARCHAR(3) NOT NULL,
     altura VARCHAR(10) NOT NULL,

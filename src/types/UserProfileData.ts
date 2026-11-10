@@ -3,6 +3,7 @@ export interface UserProfileData {
     nome: string;
     telefone: string;
     sexo: string;
+    classe_especial?: 'sim' | 'nao' | string;
     idade?: string;
     descricao: string;
     email?: string;

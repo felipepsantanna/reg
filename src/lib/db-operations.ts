@@ -43,22 +43,25 @@ export async function verifyPassword(password: string, hashedPassword: string) {
 export async function saveUserProfile(userId: number, profileData: {
     nome: string;
     sexo: string;
+    classe_especial?: 'sim' | 'nao';
     idade?: string | number | null;
     status?: string;
 }) {
     const {
         nome,
         sexo,
+        classe_especial = 'nao',
         idade = '',
         status = 'pending'
     } = profileData;
 
     const [result] = await pool.execute(
-        'INSERT INTO user_profiles (user_id, nome, sexo, idade, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+        'INSERT INTO user_profiles (user_id, nome, sexo, classe_especial, idade, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
         [
             userId,
             nome,
             sexo,
+            classe_especial,
             idade ?? '',
             status
         ]
@@ -76,15 +79,17 @@ export async function getUserProfile(userId: number) {
 export async function updateUserProfile(userId: number, profileData: {
     nome: string;
     sexo: string;
+    classe_especial?: 'sim' | 'nao';
     idade?: string | number | null;
 }) {
-    const { nome, sexo, idade = '' } = profileData;
+    const { nome, sexo, classe_especial = 'nao', idade = '' } = profileData;
 
     const [result] = await pool.execute(
-        'UPDATE user_profiles SET nome = ?, sexo = ?, idade = ?, updated_at = NOW() WHERE user_id = ?',
+        'UPDATE user_profiles SET nome = ?, sexo = ?, classe_especial = ?, idade = ?, updated_at = NOW() WHERE user_id = ?',
         [
             nome,
             sexo,
+            classe_especial,
             idade ?? '',
             userId
         ]
